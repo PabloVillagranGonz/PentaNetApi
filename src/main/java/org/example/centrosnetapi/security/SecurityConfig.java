@@ -39,11 +39,63 @@ public class SecurityConfig {
                         // 🔓 AUTH
                         .requestMatchers("/auth/**").permitAll()
 
-                        // 🔓 LECTURA PÚBLICA (USUARIOS LOGUEADOS)
-                        .requestMatchers("/api/public/**")
-                        .hasAnyRole("ADMIN", "STUDENT", "TEACHER")
+                        // 🔥 SWAGGER
+                        .requestMatchers(
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/doc/**"
+                        ).permitAll()
 
-                        // 🔐 ADMIN (GESTIÓN)
+                        // =====================================================
+                        // 🎹 AULAS
+                        // =====================================================
+
+                        // 🔓 SOLO LECTURA (ADMIN, SECRETARIA, STUDENT)
+                        .requestMatchers(HttpMethod.GET, "/api/aulas/**")
+                        .hasAnyRole("ADMIN", "SECRETARIA", "STUDENT")
+
+                        // 🔐 CREAR / MODIFICAR (ADMIN, SECRETARIA)
+                        .requestMatchers(HttpMethod.POST, "/api/aulas/**")
+                        .hasAnyRole("ADMIN", "SECRETARIA")
+
+                        .requestMatchers(HttpMethod.PUT, "/api/aulas/**")
+                        .hasAnyRole("ADMIN", "SECRETARIA")
+
+                        // 🔐 BORRAR (solo ADMIN)
+                        .requestMatchers(HttpMethod.DELETE, "/api/aulas/**")
+                        .hasRole("ADMIN")
+
+                        // =====================================================
+                        // 🕒 RESERVAS
+                        // =====================================================
+
+                        // 🔓 VER RESERVAS (ADMIN, SECRETARIA)
+                        .requestMatchers(HttpMethod.GET, "/api/reservas/**")
+                        .hasAnyRole("ADMIN", "SECRETARIA")
+
+                        // 🔐 CREAR / FINALIZAR RESERVA (ADMIN, SECRETARIA)
+                        .requestMatchers("/api/reservas/**")
+                        .hasAnyRole("ADMIN", "SECRETARIA")
+
+                        // =====================================================
+                        // 👤 USUARIOS (búsqueda para reservas)
+                        // =====================================================
+
+                        .requestMatchers("/api/usuarios/**")
+                        .hasAnyRole("ADMIN", "SECRETARIA")
+
+                        // =====================================================
+                        // 📧 CORREOS
+                        // =====================================================
+
+                        .requestMatchers("/api/correos/**")
+                        .hasAnyRole("ADMIN", "STUDENT", "TEACHER", "SECRETARIA")
+
+                        // =====================================================
+                        // 🔐 ADMIN GENERAL
+                        // =====================================================
+
                         .requestMatchers(
                                 "/admin/**",
                                 "/api/rooms/**",
@@ -53,10 +105,6 @@ public class SecurityConfig {
                                 "/api/centers/**",
                                 "/api/instruments/**"
                         ).hasRole("ADMIN")
-
-                        // 📧 CORREOS
-                        .requestMatchers("/api/correos/**")
-                        .hasAnyRole("ADMIN", "STUDENT", "TEACHER")
 
                         // 🔒 RESTO
                         .anyRequest().authenticated()

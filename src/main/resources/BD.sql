@@ -245,6 +245,68 @@ CREATE TABLE teacher_courses (
                                  FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
 );
 
+
+-- =========================
+-- AULAS (MULTI-CENTRO)
+-- =========================
+CREATE TABLE aulas (
+                       id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+                       center_id BIGINT NOT NULL,
+
+                       numero INT NOT NULL,
+                       tipo VARCHAR(50),
+                       estado ENUM('libre', 'ocupada') NOT NULL DEFAULT 'libre',
+                       instrumento_actual BIGINT NULL,
+
+                       UNIQUE (center_id, numero),
+
+                       CONSTRAINT fk_aula_center
+                           FOREIGN KEY (center_id)
+                               REFERENCES centers(id)
+                               ON DELETE CASCADE,
+
+                       CONSTRAINT fk_aula_instrumento
+                           FOREIGN KEY (instrumento_actual)
+                               REFERENCES instruments(id)
+                               ON DELETE SET NULL
+);
+-- =====================================================
+-- TABLA: reservas
+-- =====================================================
+CREATE TABLE reservas (
+                          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+                          center_id BIGINT NOT NULL,
+                          usuario_id BIGINT NOT NULL,
+                          aula_id BIGINT NOT NULL,
+
+                          inicio DATETIME NOT NULL,
+                          fin DATETIME NOT NULL,
+                          fin_real DATETIME DEFAULT NULL,
+
+                          finalizada_antes BOOLEAN DEFAULT FALSE,
+
+-- =========================
+-- FOREIGN KEYS
+-- =========================
+
+                          CONSTRAINT fk_reserva_center
+                              FOREIGN KEY (center_id)
+                                  REFERENCES centers(id)
+                                  ON DELETE CASCADE,
+
+                          CONSTRAINT fk_reserva_usuario
+                              FOREIGN KEY (usuario_id)
+                                  REFERENCES users(id)
+                                  ON DELETE RESTRICT,
+
+                          CONSTRAINT fk_reserva_aula
+                              FOREIGN KEY (aula_id)
+                                  REFERENCES aulas(id)
+                                  ON DELETE RESTRICT
+);
+
 -- =========================
 -- INDEXES
 -- =========================
@@ -360,3 +422,20 @@ VALUES
     (1, 1, 1, 1, 1, '16:00:00', '17:00:00'), -- Lunes Instrumento
     (2, 2, 1, 2, 2, '17:00:00', '18:00:00'), -- Martes Lenguaje Musical
     (3, 2, 1, 1, 4, '18:00:00', '19:30:00'); -- Jueves Banda
+
+-- =========================
+-- AULAS CABINAS ESTUDIO (Centro 1)
+-- =========================
+
+INSERT INTO aulas (center_id, numero, tipo, estado)
+VALUES
+    (1, 300, 'cabina_estudio', 'libre'),
+    (1, 301, 'cabina_estudio', 'libre'),
+    (1, 302, 'cabina_estudio', 'libre'),
+    (1, 303, 'cabina_estudio', 'libre'),
+    (1, 304, 'cabina_estudio', 'libre'),
+    (1, 305, 'cabina_estudio', 'libre'),
+    (1, 306, 'cabina_estudio', 'libre'),
+    (1, 307, 'cabina_estudio', 'libre'),
+    (1, 308, 'cabina_estudio', 'libre'),
+    (1, 309, 'cabina_estudio', 'libre');
