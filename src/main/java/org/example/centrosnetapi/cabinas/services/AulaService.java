@@ -5,7 +5,6 @@ import org.example.centrosnetapi.cabinas.dtos.AulaDisponibilidadDTO;
 import org.example.centrosnetapi.cabinas.dtos.AulaResponseDTO;
 import org.example.centrosnetapi.cabinas.dtos.EstadisticasAulasDTO;
 import org.example.centrosnetapi.cabinas.models.Aula;
-import org.example.centrosnetapi.cabinas.models.EstadoAula;
 import org.example.centrosnetapi.cabinas.models.Reserva;
 import org.example.centrosnetapi.cabinas.repositories.AulaRepository;
 import org.example.centrosnetapi.cabinas.repositories.ReservaRepository;
@@ -15,6 +14,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+
 
 @Service
 @RequiredArgsConstructor
@@ -27,20 +27,22 @@ public class AulaService {
         return aulaRepository.findAll();
     }
 
-    public List<Aula> obtenerLibres() {
-        return aulaRepository.findByEstado(EstadoAula.libre);
-    }
-
+    // ==========================================
+    // 📊 DISPONIBILIDAD
+    // ==========================================
     public List<AulaDisponibilidadDTO> obtenerDisponibilidadPorCentro(Long centerId) {
 
         List<Aula> aulas = aulaRepository.findByCenterId(centerId);
+        LocalDateTime ahora = LocalDateTime.now();
 
         return aulas.stream().map(aula -> {
 
-            Optional<Reserva> activa =
-                    reservaRepository
-                            .findByAulaIdAndFinRealIsNull(aula.getId())
-                            .filter(r -> r.getFin().isAfter(LocalDateTime.now()));
+            List<Reserva> reservas =
+                    reservaRepository.findAllByAulaIdAndFinRealIsNull(aula.getId());
+
+            Optional<Reserva> activa = reservas.stream()
+                    .filter(r -> r.getFin().isAfter(ahora))
+                    .findFirst();
 
             if (activa.isPresent()) {
                 return new AulaDisponibilidadDTO(
@@ -59,6 +61,9 @@ public class AulaService {
         }).toList();
     }
 
+    // ==========================================
+    // 🎹 DASHBOARD
+    // ==========================================
     public List<AulaResponseDTO> obtenerAulasDashboard(Long centerId) {
 
         List<Aula> aulas = aulaRepository.findByCenterId(centerId);
@@ -66,14 +71,16 @@ public class AulaService {
 
         return aulas.stream().map(aula -> {
 
-            Optional<Reserva> reservaActiva =
-                    reservaRepository
-                            .findByAulaIdAndFinRealIsNull(aula.getId())
-                            .filter(r -> r.getFin().isAfter(ahora));
+            List<Reserva> reservas =
+                    reservaRepository.findAllByAulaIdAndFinRealIsNull(aula.getId());
 
-            if (reservaActiva.isPresent()) {
+            Optional<Reserva> activa = reservas.stream()
+                    .filter(r -> r.getFin().isAfter(ahora))
+                    .findFirst();
 
-                Reserva r = reservaActiva.get();
+            if (activa.isPresent()) {
+
+                Reserva r = activa.get();
 
                 return new AulaResponseDTO(
                         aula.getId(),
@@ -103,17 +110,34 @@ public class AulaService {
         }).toList();
     }
 
+    // ==========================================
+    // 📈 ESTADÍSTICAS
+    // ==========================================
     public EstadisticasAulasDTO obtenerEstadisticas(Long centerId) {
 
-        long total = aulaRepository.countByCenterId(centerId);
-        long libres = aulaRepository.countByCenterIdAndEstado(centerId, EstadoAula.libre);
-        long ocupadas = total - libres;
+        List<Aula> aulas = aulaRepository.findByCenterId(centerId);
+        LocalDateTime ahora = LocalDateTime.now();
+
+        long total = aulas.size();
+
+        long ocupadas = aulas.stream()
+                .filter(aula -> {
+
+                    List<Reserva> reservas =
+                            reservaRepository.findAllByAulaIdAndFinRealIsNull(aula.getId());
+
+                    return reservas.stream()
+                            .anyMatch(r -> r.getFin().isAfter(ahora));
+                })
+                .count();
+
+        long libres = total - ocupadas;
 
         long reservasHoy =
                 reservaRepository.countByCenterIdAndInicioBetween(
                         centerId,
                         LocalDate.now().atStartOfDay(),
-                        LocalDate.now().atTime(23,59,59)
+                        LocalDate.now().atTime(23, 59, 59)
                 );
 
         return new EstadisticasAulasDTO(total, libres, ocupadas, reservasHoy);

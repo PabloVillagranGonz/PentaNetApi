@@ -39,7 +39,7 @@ public class SecurityConfig {
                         // 🔓 AUTH
                         .requestMatchers("/auth/**").permitAll()
 
-                        // 🔥 SWAGGER
+                        // 🔓 SWAGGER
                         .requestMatchers(
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
@@ -51,35 +51,27 @@ public class SecurityConfig {
                         // 🎹 AULAS
                         // =====================================================
 
-                        // 🔓 SOLO LECTURA (ADMIN, SECRETARIA, STUDENT)
                         .requestMatchers(HttpMethod.GET, "/api/aulas/**")
                         .hasAnyRole("ADMIN", "SECRETARIA", "STUDENT")
 
-                        // 🔐 CREAR / MODIFICAR (ADMIN, SECRETARIA)
                         .requestMatchers(HttpMethod.POST, "/api/aulas/**")
                         .hasAnyRole("ADMIN", "SECRETARIA")
 
                         .requestMatchers(HttpMethod.PUT, "/api/aulas/**")
                         .hasAnyRole("ADMIN", "SECRETARIA")
 
-                        // 🔐 BORRAR (solo ADMIN)
                         .requestMatchers(HttpMethod.DELETE, "/api/aulas/**")
                         .hasRole("ADMIN")
 
                         // =====================================================
-                        // 🕒 RESERVAS
+                        // 🕒 RESERVAS (🔥 SIMPLE Y LIMPIO)
                         // =====================================================
 
-                        // 🔓 VER RESERVAS (ADMIN, SECRETARIA)
-                        .requestMatchers(HttpMethod.GET, "/api/reservas/**")
-                        .hasAnyRole("ADMIN", "SECRETARIA")
-
-                        // 🔐 CREAR / FINALIZAR RESERVA (ADMIN, SECRETARIA)
                         .requestMatchers("/api/reservas/**")
                         .hasAnyRole("ADMIN", "SECRETARIA")
 
                         // =====================================================
-                        // 👤 USUARIOS (búsqueda para reservas)
+                        // 👤 USUARIOS
                         // =====================================================
 
                         .requestMatchers("/api/usuarios/**")

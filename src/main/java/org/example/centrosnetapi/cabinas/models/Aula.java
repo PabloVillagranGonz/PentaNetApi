@@ -19,9 +19,6 @@ public class Aula {
 
     private String tipo;
 
-    @Enumerated(EnumType.STRING)
-    private EstadoAula estado = EstadoAula.libre;
-
     @ManyToOne
     @JoinColumn(name = "instrumento_actual")
     private Instrument instrumentoActual;

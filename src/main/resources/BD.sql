@@ -256,7 +256,6 @@ CREATE TABLE aulas (
 
                        numero INT NOT NULL,
                        tipo VARCHAR(50),
-                       estado ENUM('libre', 'ocupada') NOT NULL DEFAULT 'libre',
                        instrumento_actual BIGINT NULL,
 
                        UNIQUE (center_id, numero),

@@ -9,14 +9,19 @@ import java.util.Optional;
 
 public interface ReservaRepository extends JpaRepository<Reserva, Long> {
 
-    Optional<Reserva> findByUsuarioIdAndFinRealIsNull(Integer usuarioId);
+    // 🔥 Alumno
+    List<Reserva> findAllByUsuarioIdAndFinRealIsNull(Long usuarioId);
 
-    Optional<Reserva> findByAulaIdAndFinRealIsNull(Long aulaId);
+    // 🔥 Aula
+    List<Reserva> findAllByAulaIdAndFinRealIsNull(Long aulaId);
 
+    // 🔥 Todas las activas
     List<Reserva> findByFinRealIsNull();
 
+    // 🔥 Historial
     List<Reserva> findAllByOrderByInicioDesc();
 
+    // 🔥 Estadísticas
     long countByCenterIdAndInicioBetween(
             Long centerId,
             LocalDateTime inicio,

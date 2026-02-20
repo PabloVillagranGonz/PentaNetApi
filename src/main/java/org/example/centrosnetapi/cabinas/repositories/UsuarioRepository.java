@@ -7,7 +7,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
-public interface UsuarioRepository extends JpaRepository<User, Integer> {
+public interface UsuarioRepository extends JpaRepository<User, Long> {
     @Query("SELECT u FROM User u WHERE CAST(u.id as string) LIKE CONCAT(:query, '%')")
     List<User> buscarPorIdParcial(@Param("query") String query);
 }

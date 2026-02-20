@@ -14,31 +14,31 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-
 @RestController
 @RequestMapping("/api/aulas")
 public class AulaController {
 
-    private Long obtenerCenterIdDesdeJWT(Authentication auth) {
-
-        User user = (User) auth.getPrincipal();
-
-        return user.getCenter().getId();
-    }
-
     @Autowired
     private AulaService aulaService;
 
+    private Long obtenerCenterIdDesdeJWT(Authentication auth) {
+        User user = (User) auth.getPrincipal();
+        return user.getCenter().getId();
+    }
+
+    // 🔎 Listado simple (solo admin normalmente)
     @GetMapping
-    public List<Aula> listarAulas() {
-        return aulaService.obtenerTodas();
+    public List<Aula> listarAulas(Authentication auth) {
+
+        Long centerId = obtenerCenterIdDesdeJWT(auth);
+
+        return aulaService.obtenerTodas()
+                .stream()
+                .filter(a -> a.getCenter().getId().equals(centerId))
+                .toList();
     }
 
-    @GetMapping("/libres")
-    public List<Aula> aulasLibres() {
-        return aulaService.obtenerLibres();
-    }
-
+    // 🔥 DASHBOARD PRINCIPAL
     @GetMapping("/dashboard")
     public List<AulaResponseDTO> obtenerDashboard(Authentication auth) {
 
@@ -46,6 +46,8 @@ public class AulaController {
 
         return aulaService.obtenerAulasDashboard(centerId);
     }
+
+    // 📊 DISPONIBILIDAD SIMPLE
     @GetMapping("/disponibilidad")
     public List<AulaDisponibilidadDTO> disponibilidad(Authentication auth) {
 
@@ -54,6 +56,7 @@ public class AulaController {
         return aulaService.obtenerDisponibilidadPorCentro(centerId);
     }
 
+    // 📈 ESTADÍSTICAS
     @GetMapping("/estadisticas")
     public EstadisticasAulasDTO estadisticas(Authentication auth) {
 

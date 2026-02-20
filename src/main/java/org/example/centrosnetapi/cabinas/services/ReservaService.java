@@ -1,14 +1,16 @@
 package org.example.centrosnetapi.cabinas.services;
 
+import jakarta.transaction.Transactional;
 import org.example.centrosnetapi.cabinas.models.Aula;
-import org.example.centrosnetapi.cabinas.models.EstadoAula;
 import org.example.centrosnetapi.cabinas.models.Reserva;
 import org.example.centrosnetapi.cabinas.repositories.AulaRepository;
 import org.example.centrosnetapi.cabinas.repositories.ReservaRepository;
 import org.example.centrosnetapi.cabinas.repositories.UsuarioRepository;
+import org.example.centrosnetapi.models.User;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -21,100 +23,151 @@ public class ReservaService {
 
     @Autowired
     private ReservaRepository reservaRepository;
-    @Autowired private UsuarioRepository usuarioRepository;
-    @Autowired private AulaRepository aulaRepository;
 
-    public Reserva crearReserva(Integer usuarioId, Long aulaId, int duracionMin) {
+    @Autowired
+    private UsuarioRepository usuarioRepository;
+
+    @Autowired
+    private AulaRepository aulaRepository;
+
+
+    // ==========================================
+    // 🚀 CREAR RESERVA
+    // ==========================================
+    @Transactional
+    public Reserva crearReserva(Long usuarioId, Long aulaId, int duracionMin) {
 
         if (duracionMin < 30 || duracionMin > 60) {
-            throw new RuntimeException("Duración inválida");
-        }
-
-        // 🔎 Obtener usuario
-        var usuario = usuarioRepository.findById(usuarioId)
-                .orElseThrow(() -> new RuntimeException("Usuario no existe"));
-
-        // 🔎 Obtener aula y verificar que esté libre
-        var aula = aulaRepository.findById(aulaId)
-                .orElseThrow(() -> new RuntimeException("Aula no existe"));
-
-        if (aula.getEstado() != EstadoAula.libre) {
-            throw new RuntimeException("Aula ocupada");
-        }
-
-        // 🔐 VALIDACIÓN IMPORTANTE
-        // El alumno debe pertenecer al mismo centro que el aula
-        if (!usuario.getCenter().getId().equals(aula.getCenter().getId())) {
             throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "El alumno no pertenece a este centro"
+                    HttpStatus.BAD_REQUEST,
+                    "Duración inválida"
             );
         }
 
-        // 🚫 El alumno no puede tener reserva activa
-        reservaRepository.findByUsuarioIdAndFinRealIsNull(usuarioId)
-                .ifPresent(r -> {
-                    throw new ResponseStatusException(
-                            HttpStatus.CONFLICT,
-                            "El alumno ya tiene una reserva activa"
-                    );
-                });
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        var secretaria = (User) auth.getPrincipal();
 
-        // 🏗 Crear reserva
+        var usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() ->
+                        new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "Usuario no existe"
+                        )
+                );
+
+        var aula = aulaRepository.findById(aulaId)
+                .orElseThrow(() ->
+                        new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "Aula no existe"
+                        )
+                );
+
+        if (!secretaria.getCenter().getId().equals(aula.getCenter().getId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "No puedes reservar aulas de otro centro"
+            );
+        }
+
+        LocalDateTime ahora = LocalDateTime.now();
+
+        // ==============================
+        // 🔒 VALIDAR RESERVAS DEL ALUMNO
+        // ==============================
+        List<Reserva> reservasAlumno =
+                reservaRepository.findAllByUsuarioIdAndFinRealIsNull(usuarioId);
+
+        for (Reserva r : reservasAlumno) {
+
+            if (r.getFin().isBefore(ahora)) {
+                // 🔥 cerrar automáticamente si está vencida
+                r.setFinReal(ahora);
+                continue;
+            }
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "El alumno ya tiene una reserva activa"
+            );
+        }
+
+        // ==============================
+        // 🔒 VALIDAR RESERVAS DEL AULA
+        // ==============================
+        List<Reserva> reservasAula =
+                reservaRepository.findAllByAulaIdAndFinRealIsNull(aulaId);
+
+        for (Reserva r : reservasAula) {
+
+            if (r.getFin().isBefore(ahora)) {
+                // 🔥 cerrar automáticamente si está vencida
+                r.setFinReal(ahora);
+                r.getAula().setInstrumentoActual(null);
+                continue;
+            }
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "El aula ya está ocupada"
+            );
+        }
+
+        // ==============================
+        // ✅ CREAR NUEVA RESERVA
+        // ==============================
+
         Reserva reserva = new Reserva();
         reserva.setUsuario(usuario);
         reserva.setAula(aula);
-
-        // 🔥 CLAVE: asignar el centro (esto evita tu error SQL)
-        reserva.setCenter(aula.getCenter());
-
-        LocalDateTime ahora = LocalDateTime.now();
+        reserva.setCenter(secretaria.getCenter());
         reserva.setInicio(ahora);
         reserva.setFin(ahora.plusMinutes(duracionMin));
-
-        // 🔄 Actualizar estado del aula
-        aula.setEstado(EstadoAula.ocupada);
-        aula.setInstrumentoActual(usuario.getInstrument());
-
-        aulaRepository.save(aula);
 
         return reservaRepository.save(reserva);
     }
 
+
+    // ==========================================
+    // 🛑 FINALIZAR RESERVA
+    // ==========================================
+    @Transactional
     public void finalizarReservaPorAula(Long aulaId) {
 
-        Optional<Reserva> optionalReserva =
-                reservaRepository.findByAulaIdAndFinRealIsNull(aulaId);
+        List<Reserva> reservas =
+                reservaRepository.findAllByAulaIdAndFinRealIsNull(aulaId);
 
-        if (optionalReserva.isEmpty()) {
-            // No hay reserva activa → no hacemos nada
-            return;
-        }
+        if (reservas.isEmpty()) return;
 
-        Reserva r = optionalReserva.get();
+        Reserva r = reservas.get(0); // Tomamos la primera válida
 
-        r.setFinReal(LocalDateTime.now());
+        LocalDateTime ahora = LocalDateTime.now();
 
-        if (LocalDateTime.now().isBefore(r.getFin())) {
+        r.setFinReal(ahora);
+
+        if (ahora.isBefore(r.getFin())) {
             r.setFinalizadaAntes(true);
         }
 
-        Aula aula = r.getAula();
-        aula.setEstado(EstadoAula.libre);
-        aula.setInstrumentoActual(null);
-
-        aulaRepository.save(aula);
-        reservaRepository.save(r);
+        r.getAula().setInstrumentoActual(null);
     }
+
+    // ==========================================
+    // 📊 RESERVAS ACTIVAS
+    // ==========================================
     public List<Reserva> obtenerReservasActivas() {
         return reservaRepository.findByFinRealIsNull();
     }
 
+
+    // ==========================================
+    // ⏲ CIERRE AUTOMÁTICO
+    // ==========================================
     @Scheduled(fixedRate = 10000)
+    @Transactional
     public void cerrarReservasVencidas() {
 
         List<Reserva> activas = reservaRepository.findByFinRealIsNull();
-
         LocalDateTime ahora = LocalDateTime.now();
 
         for (Reserva r : activas) {
@@ -124,15 +177,17 @@ public class ReservaService {
                 r.setFinReal(ahora);
 
                 Aula aula = r.getAula();
-                aula.setEstado(EstadoAula.libre);
                 aula.setInstrumentoActual(null);
-
-                aulaRepository.save(aula);
-                reservaRepository.save(r);
             }
         }
     }
+
+
+    // ==========================================
+    // 📜 HISTORIAL
+    // ==========================================
     public List<Reserva> obtenerHistorial() {
         return reservaRepository.findAllByOrderByInicioDesc();
     }
+
 }
