@@ -18,12 +18,16 @@ public interface CorreoRepository extends JpaRepository<Correo, Long> {
         c.id as id,
         c.asunto as asunto,
         c.cuerpo as cuerpo,
-        FUNCTION('DATE_FORMAT', c.fechaEnvio, '%Y-%m-%d %H:%i') as fecha,
-        u.email as email
+        c.fechaEnvio as fecha_envio,
+        u.nombre as remitenteNombre,
+        u.email as remitenteEmail,
+        uc.leido as leido
     )
-    FROM Correo c
-    JOIN c.destinatario u
-    WHERE c.emisor.id = :userId
+    FROM UsuarioCorreo uc
+    JOIN uc.correo c
+    JOIN c.emisor u
+    WHERE uc.usuario.id = :userId
+      AND uc.eliminado = false
     ORDER BY c.fechaEnvio DESC
 """)
     List<Map<String, Object>> findSentByUser(@Param("userId") Long userId);

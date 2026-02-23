@@ -26,4 +26,8 @@ public class Correo {
 
     @Column(name = "fecha_envio")
     private LocalDateTime fechaEnvio;
+
+    @ManyToOne
+    @JoinColumn(name = "message_group_id")
+    private MessageGroup messageGroup;
 }

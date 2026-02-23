@@ -10,4 +10,5 @@ public interface CourseSubjectRepository extends JpaRepository<CourseSubject, Lo
 
     List<CourseSubject> findByCourseId(Long courseId);
     Optional<CourseSubject> findByCourseIdAndSubjectId(Long courseId, Long subjectId);
+    List<CourseSubject> findBySubjectId(Long subjectId);
 }

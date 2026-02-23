@@ -2,9 +2,12 @@ package org.example.centrosnetapi.controllers;
 
 import lombok.RequiredArgsConstructor;
 import org.example.centrosnetapi.dtos.SendCorreoRequestDTO;
+import org.example.centrosnetapi.dtos.SendGroupCorreoRequestDTO;
 import org.example.centrosnetapi.models.User;
 import org.example.centrosnetapi.services.CorreoService;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -74,5 +77,16 @@ public class CorreoController {
                 dto.getAsunto(),
                 dto.getCuerpo()
         );
+    }
+
+    @PostMapping("/send/group")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ResponseEntity<?> sendToGroup(
+            @RequestBody SendGroupCorreoRequestDTO request,
+            Authentication authentication) {
+
+        correoService.sendToGroup(request, authentication.getName());
+
+        return ResponseEntity.ok("Mensaje enviado al grupo correctamente");
     }
 }

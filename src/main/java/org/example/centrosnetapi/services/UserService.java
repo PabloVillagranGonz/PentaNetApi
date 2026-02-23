@@ -35,15 +35,23 @@ public class UserService {
             throw new RuntimeException("ROLE_REQUIRED");
         }
 
+        // 🔥 VALIDACIÓN DNI
+        validateDni(dto.getDni());
+
         User user = new User();
 
         user.setNombre(dto.getNombre());
         user.setApellidos(dto.getApellidos());
         user.setEmail(dto.getEmail());
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
-        user.setRole(dto.getRole()); // 🔥 YA NO FALLA
+        user.setRole(dto.getRole());
         user.setPhone(dto.getPhone());
-        user.setDni(dto.getDni());
+
+        // Normalizamos antes de guardar
+        if (dto.getDni() != null) {
+            user.setDni(dto.getDni().toUpperCase().trim());
+        }
+
         user.setActive(true);
 
         if (dto.getCenter_id() != null) {
@@ -196,5 +204,26 @@ public class UserService {
                 .courseName(u.getCourse() != null ? u.getCourse().getName() : null)
 
                 .build();
+    }
+
+    private void validateDni(String dni) {
+
+        if (dni == null || dni.isBlank()) {
+            return; // si no es obligatorio
+        }
+
+        dni = dni.toUpperCase().trim();
+
+        if (!dni.matches("^[0-9]{8}[A-Z]$")) {
+            throw new RuntimeException("DNI_FORMAT_INVALID");
+        }
+
+        String letters = "TRWAGMYFPDXBNJZSQVHLCKE";
+        int number = Integer.parseInt(dni.substring(0, 8));
+        char letter = dni.charAt(8);
+
+        if (letters.charAt(number % 23) != letter) {
+            throw new RuntimeException("DNI_INVALID");
+        }
     }
 }

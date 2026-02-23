@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.centrosnetapi.dtos.SubjectRequestDTO;
 import org.example.centrosnetapi.dtos.SubjectResponseDTO;
 import org.example.centrosnetapi.services.SubjectService;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -52,5 +53,13 @@ public class SubjectController {
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
         subjectService.delete(id);
+    }
+
+    @GetMapping("/mine")
+    public List<SubjectResponseDTO> getMySubjects(Authentication authentication) {
+
+        String email = authentication.getName();
+
+        return subjectService.getSubjectsForTeacher(email);
     }
 }

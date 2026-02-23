@@ -4,9 +4,12 @@ import lombok.RequiredArgsConstructor;
 import org.example.centrosnetapi.dtos.SubjectRequestDTO;
 import org.example.centrosnetapi.dtos.SubjectResponseDTO;
 import org.example.centrosnetapi.models.Center;
+import org.example.centrosnetapi.models.Role;
 import org.example.centrosnetapi.models.Subject;
+import org.example.centrosnetapi.models.User;
 import org.example.centrosnetapi.repositories.CenterRepository;
 import org.example.centrosnetapi.repositories.SubjectRepository;
+import org.example.centrosnetapi.repositories.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -20,6 +23,7 @@ public class SubjectService {
 
     private final SubjectRepository subjectRepository;
     private final CenterRepository centerRepository;
+    private final UserRepository userRepository;
 
     // ================= UPDATE =================
     @PreAuthorize("hasRole('ADMIN')")
@@ -114,6 +118,28 @@ public class SubjectService {
             );
         }
         subjectRepository.deleteById(id);
+    }
+
+    public List<SubjectResponseDTO> getSubjectsForTeacher(String email) {
+
+        User teacher = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
+
+        if (teacher.getRole() != Role.TEACHER) {
+            throw new RuntimeException("NOT_A_TEACHER");
+        }
+
+        return subjectRepository.findSubjectsByTeacherId(teacher.getId())
+                .stream()
+                .map(subject -> SubjectResponseDTO.builder()
+                        .id(subject.getId())
+                        .name(subject.getName())
+                        .code(subject.getCode())
+                        .description(subject.getDescription())
+                        .durationMinutes(subject.getDurationMinutes())
+                        .centerId(subject.getCenter().getId())
+                        .build())
+                .toList();
     }
 
     // ================= DTO =================

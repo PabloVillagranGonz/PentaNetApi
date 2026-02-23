@@ -13,6 +13,11 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -64,7 +69,7 @@ public class SecurityConfig {
                         .hasRole("ADMIN")
 
                         // =====================================================
-                        // 🕒 RESERVAS (🔥 SIMPLE Y LIMPIO)
+                        // 🕒 RESERVAS
                         // =====================================================
 
                         .requestMatchers("/api/reservas/**")
@@ -85,13 +90,24 @@ public class SecurityConfig {
                         .hasAnyRole("ADMIN", "STUDENT", "TEACHER", "SECRETARIA")
 
                         // =====================================================
+                        // 📚 SUBJECTS
+                        // =====================================================
+
+                        // 👨‍🏫 PROFESOR → sus asignaturas
+                        .requestMatchers(HttpMethod.GET, "/api/subjects/mine")
+                        .hasRole("TEACHER")
+
+                        // 🔐 ADMIN → gestión completa de asignaturas
+                        .requestMatchers("/api/subjects/**")
+                        .hasRole("ADMIN")
+
+                        // =====================================================
                         // 🔐 ADMIN GENERAL
                         // =====================================================
 
                         .requestMatchers(
                                 "/admin/**",
                                 "/api/rooms/**",
-                                "/api/subjects/**",
                                 "/api/courses/**",
                                 "/api/course-subjects/**",
                                 "/api/centers/**",
@@ -109,5 +125,21 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        configuration.setAllowedOrigins(List.of("*"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setAllowCredentials(false);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+
+        return source;
     }
 }
