@@ -19,13 +19,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByRoleAndCenterId(Role role, Long centerId);
 
     List<User> findByCourseId(Long courseId);
-    @Query("""
-    SELECT u FROM User u
-    WHERE u.course.id = :courseId
-      AND u.role = :role
-""")
-    List<User> findByCourseIdAndRole(
-            @Param("courseId") Long courseId,
-            @Param("role") Role role
-    );
+
+    List<User> findByCourse_IdAndRole(Long courseId, Role role);
 }

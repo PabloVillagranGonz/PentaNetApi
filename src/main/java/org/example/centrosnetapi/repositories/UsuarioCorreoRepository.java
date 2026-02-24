@@ -29,6 +29,28 @@ public interface UsuarioCorreoRepository extends JpaRepository<UsuarioCorreo, Lo
     ORDER BY c.fechaEnvio DESC
 """)
     List<Map<String, Object>> findInbox(@Param("userId") Long userId);
+
+    // 📤 ENVIADOS
+    @Query("""
+    SELECT new map(
+        c.id as id,
+        c.asunto as asunto,
+        c.cuerpo as cuerpo,
+        c.fechaEnvio as fecha_envio,
+        COALESCE(s.name, d.email) as destinatario
+    )
+    FROM UsuarioCorreo uc
+    JOIN uc.correo c
+    LEFT JOIN c.destinatario d
+    LEFT JOIN c.messageGroup mg
+    LEFT JOIN mg.subject s
+    WHERE uc.usuario.id = :userId
+      AND c.emisor.id = :userId
+      AND uc.eliminado = false
+    ORDER BY c.fechaEnvio DESC
+    """)
+    List<Map<String, Object>> findSent(@Param("userId") Long userId);
+
     // ✅ LEÍDO
     @Modifying
     @Query("""

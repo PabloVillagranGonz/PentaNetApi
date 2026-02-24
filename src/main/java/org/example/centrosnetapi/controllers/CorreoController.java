@@ -3,12 +3,10 @@ package org.example.centrosnetapi.controllers;
 import lombok.RequiredArgsConstructor;
 import org.example.centrosnetapi.dtos.SendCorreoRequestDTO;
 import org.example.centrosnetapi.dtos.SendGroupCorreoRequestDTO;
-import org.example.centrosnetapi.models.User;
 import org.example.centrosnetapi.services.CorreoService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,70 +21,64 @@ public class CorreoController {
 
     private final CorreoService correoService;
 
-    // 📥 BANDEJA DE ENTRADA
+    // 📥 INBOX
     @GetMapping("/inbox")
-    public List<Map<String, Object>> getInbox(
-            @AuthenticationPrincipal User user
-    ) {
-        return correoService.getInbox(user.getId());
+    public List<Map<String, Object>> getInbox(Authentication authentication) {
+        return correoService.getInboxByEmail(authentication.getName());
     }
 
     // 📤 ENVIADOS
     @GetMapping("/sent")
-    public List<Map<String, Object>> getSent(
-            @AuthenticationPrincipal User user
-    ) {
-        return correoService.getSent(user.getId());
+    public List<Map<String, Object>> getSent(Authentication authentication) {
+        return correoService.getSentByEmail(authentication.getName());
     }
 
     // ✅ MARCAR COMO LEÍDO
     @PutMapping("/{correoId}/read")
     public void markAsRead(
             @PathVariable Long correoId,
-            @AuthenticationPrincipal User user
+            Authentication authentication
     ) {
-        correoService.markAsRead(correoId, user.getId());
+        correoService.markAsRead(correoId, authentication.getName());
     }
 
-    // 🗑️ BORRAR CORREO PARA USUARIO
+    // 🗑️ BORRAR
     @DeleteMapping("/{correoId}")
     public void deleteForUser(
             @PathVariable Long correoId,
-            @AuthenticationPrincipal User user
+            Authentication authentication
     ) {
-        correoService.deleteForUser(correoId, user.getId());
+        correoService.deleteForUser(correoId, authentication.getName());
     }
 
-    // 🔢 CONTADOR (recuentos)
+    // 🔢 CONTADOR
     @GetMapping("/count")
-    public Map<String, Integer> getEmailCount(
-            @AuthenticationPrincipal User user
-    ) {
-        return correoService.getEmailCount(user.getId());
+    public Map<String, Integer> getEmailCount(Authentication authentication) {
+        return correoService.getEmailCount(authentication.getName());
     }
 
-    // ✉️ ENVIAR CORREO
+    // ✉️ ENVÍO INDIVIDUAL
     @PostMapping("/send")
     public void sendCorreo(
             @RequestBody SendCorreoRequestDTO dto,
-            @AuthenticationPrincipal User user
+            Authentication authentication
     ) {
         correoService.sendCorreo(
-                user.getId(),                 // 👈 emisor REAL
+                authentication.getName(),
                 dto.getDestinatarioId(),
                 dto.getAsunto(),
                 dto.getCuerpo()
         );
     }
 
+    // 👥 ENVÍO A GRUPO
     @PostMapping("/send/group")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ResponseEntity<?> sendToGroup(
             @RequestBody SendGroupCorreoRequestDTO request,
-            Authentication authentication) {
-
+            Authentication authentication
+    ) {
         correoService.sendToGroup(request, authentication.getName());
-
         return ResponseEntity.ok("Mensaje enviado al grupo correctamente");
     }
 }

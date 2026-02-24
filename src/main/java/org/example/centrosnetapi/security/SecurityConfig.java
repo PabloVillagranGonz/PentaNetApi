@@ -93,7 +93,7 @@ public class SecurityConfig {
                         // 👤 USUARIOS - BÚSQUEDA POR EMAIL
                         // =====================================================
                         .requestMatchers(HttpMethod.GET, "/api/users/email")
-                        .hasAnyRole("ADMIN", "SECRETARIA", "TEACHER")
+                        .hasAnyRole("ADMIN", "SECRETARIA", "TEACHER", "STUDENT")
 
                         // =====================================================
                         // 👤 USUARIOS - GESTIÓN

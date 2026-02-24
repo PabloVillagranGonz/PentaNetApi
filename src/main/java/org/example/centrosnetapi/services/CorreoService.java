@@ -21,31 +21,63 @@ public class CorreoService {
     private final SubjectRepository subjectRepository;
     private final MessageGroupRepository messageGroupRepository;
 
+    // =====================================================
+    // 🔎 RESOLVER USUARIO POR EMAIL (MÉTODO CENTRAL)
+    // =====================================================
+
+    private User getUserByEmail(String email) {
+        return userRepository.findByEmailIgnoreCase(email)
+                .orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
+    }
+
+    // =====================================================
     // 📥 INBOX
-    public List<Map<String, Object>> getInbox(Long userId) {
-        return usuarioCorreoRepository.findInbox(userId);
+    // =====================================================
+
+    public List<Map<String, Object>> getInboxByEmail(String email) {
+        User user = getUserByEmail(email);
+        return usuarioCorreoRepository.findInbox(user.getId());
     }
 
+    // =====================================================
     // 📤 ENVIADOS
-    public List<Map<String, Object>> getSent(Long userId) {
-        return correoRepository.findSentByUser(userId);
+    // =====================================================
+
+    public List<Map<String, Object>> getSentByEmail(String email) {
+        User user = getUserByEmail(email);
+        return usuarioCorreoRepository.findSent(user.getId());
     }
+
+    // =====================================================
     // ✅ MARCAR COMO LEÍDO
+    // =====================================================
+
     @Transactional
-    public void markAsRead(Long correoId, Long userId) {
-        usuarioCorreoRepository.markAsRead(correoId, userId);
+    public void markAsRead(Long correoId, String email) {
+        User user = getUserByEmail(email);
+        usuarioCorreoRepository.markAsRead(correoId, user.getId());
     }
 
+    // =====================================================
     // 🗑️ BORRAR
+    // =====================================================
+
     @Transactional
-    public void deleteForUser(Long correoId, Long userId) {
-        usuarioCorreoRepository.markAsDeleted(correoId, userId);
+    public void deleteForUser(Long correoId, String email) {
+        User user = getUserByEmail(email);
+        usuarioCorreoRepository.markAsDeleted(correoId, user.getId());
     }
 
+    // =====================================================
     // 🔢 CONTADOR
-    public Map<String, Integer> getEmailCount(Long userId) {
-        int enviados = correoRepository.countSent(userId);
-        int recibidos = correoRepository.countReceived(userId);
+    // =====================================================
+
+    public Map<String, Integer> getEmailCount(String email) {
+
+        User user = getUserByEmail(email);
+
+        int enviados = correoRepository.countSent(user.getId());
+        int recibidos = correoRepository.countReceived(user.getId());
 
         return Map.of(
                 "enviados", enviados,
@@ -53,21 +85,23 @@ public class CorreoService {
         );
     }
 
+    // =====================================================
+    // ✉️ ENVÍO INDIVIDUAL
+    // =====================================================
+
     @Transactional
     public void sendCorreo(
-            Long emisorId,
+            String senderEmail,
             Long destinatarioId,
             String asunto,
             String cuerpo
     ) {
 
-        User emisor = userRepository.findById(emisorId)
-                .orElseThrow(() -> new RuntimeException("EMISOR_NOT_FOUND"));
+        User emisor = getUserByEmail(senderEmail);
 
         User destinatario = userRepository.findById(destinatarioId)
                 .orElseThrow(() -> new RuntimeException("DESTINATARIO_NOT_FOUND"));
 
-        // 1️⃣ Crear correo
         Correo correo = new Correo();
         correo.setEmisor(emisor);
         correo.setDestinatario(destinatario);
@@ -76,45 +110,43 @@ public class CorreoService {
 
         correoRepository.save(correo);
 
-        // 2️⃣ Registro para destinatario (NO leído)
+        // Registro destinatario
         UsuarioCorreo ucDestinatario = new UsuarioCorreo();
         ucDestinatario.setCorreo(correo);
         ucDestinatario.setUsuario(destinatario);
         ucDestinatario.setLeido(false);
         ucDestinatario.setEliminado(false);
         ucDestinatario.setArchivado(false);
-
         usuarioCorreoRepository.save(ucDestinatario);
 
-        // 3️⃣ Registro para emisor (YA leído)
+        // Registro emisor
         UsuarioCorreo ucEmisor = new UsuarioCorreo();
         ucEmisor.setCorreo(correo);
         ucEmisor.setUsuario(emisor);
         ucEmisor.setLeido(true);
         ucEmisor.setEliminado(false);
         ucEmisor.setArchivado(false);
-
         usuarioCorreoRepository.save(ucEmisor);
     }
+
+    // =====================================================
+    // 👥 ENVÍO A GRUPO
+    // =====================================================
 
     @Transactional
     public void sendToGroup(SendGroupCorreoRequestDTO request, String senderEmail) {
 
-        if (request.getSubjectId() == null) {
-            throw new RuntimeException("Debe especificar subjectId");
-        }
+        User sender = getUserByEmail(senderEmail);
 
-        // 1️⃣ Obtener emisor
-        User sender = userRepository.findByEmailIgnoreCase(senderEmail)
-                .orElseThrow(() -> new RuntimeException("USUARIO_NO_ENCONTRADO"));
-
-        // 2️⃣ Obtener asignatura
         Subject subject = subjectRepository.findById(request.getSubjectId())
                 .orElseThrow(() -> new RuntimeException("SUBJECT_NOT_FOUND"));
 
-        // 3️⃣ Obtener relación curso-asignatura
+        System.out.println("📌 SUBJECT ID RECIBIDO: " + request.getSubjectId());
+
         List<CourseSubject> courseSubjects =
                 courseSubjectRepository.findBySubjectId(subject.getId());
+
+        System.out.println("📌 COURSE SUBJECTS SIZE: " + courseSubjects.size());
 
         if (courseSubjects.isEmpty()) {
             throw new RuntimeException("SUBJECT_SIN_CURSO");
@@ -122,13 +154,13 @@ public class CorreoService {
 
         Course course = courseSubjects.get(0).getCourse();
 
-        // 4️⃣ Crear grupo
+        System.out.println("📌 CURSO ID: " + course.getId());
+
         MessageGroup group = new MessageGroup();
         group.setSubject(subject);
         group.setCreatedBy(sender);
         messageGroupRepository.save(group);
 
-        // 5️⃣ Crear correo base
         Correo correo = new Correo();
         correo.setEmisor(sender);
         correo.setAsunto(request.getAsunto());
@@ -136,13 +168,16 @@ public class CorreoService {
         correo.setMessageGroup(group);
         correoRepository.save(correo);
 
-        // 6️⃣ Obtener alumnos del curso
         List<User> destinatarios =
-                userRepository.findByCourseIdAndRole(course.getId(), Role.STUDENT);
+                userRepository.findByCourse_IdAndRole(course.getId(), Role.STUDENT);
 
-        // 7️⃣ Crear registros para alumnos
+        System.out.println("📌 DESTINATARIOS SIZE: " + destinatarios.size());
+
+        destinatarios.forEach(u ->
+                System.out.println("👨‍🎓 ALUMNO: " + u.getId() + " - " + u.getEmail())
+        );
+
         for (User user : destinatarios) {
-
             if (!user.getId().equals(sender.getId())) {
 
                 UsuarioCorreo uc = new UsuarioCorreo();
@@ -156,11 +191,10 @@ public class CorreoService {
             }
         }
 
-        // 🔥 8️⃣ AÑADIR REGISTRO PARA EL EMISOR (ESTO FALTABA)
         UsuarioCorreo ucSender = new UsuarioCorreo();
         ucSender.setCorreo(correo);
         ucSender.setUsuario(sender);
-        ucSender.setLeido(true);      // ya lo ha leído
+        ucSender.setLeido(true);
         ucSender.setEliminado(false);
         ucSender.setArchivado(false);
 
