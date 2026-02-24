@@ -35,7 +35,7 @@ Permite administrar centros, cursos, asignaturas, profesores y alumnos, además 
 
 ⸻
 
-🏫 Funcionalidades principales
+### 🏫 Funcionalidades principales
 
 👑 Administrador
 •	Crear centros
