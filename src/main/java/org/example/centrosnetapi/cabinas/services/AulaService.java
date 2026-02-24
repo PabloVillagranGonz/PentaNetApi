@@ -87,9 +87,6 @@ public class AulaService {
                         aula.getNumero(),
                         aula.getTipo(),
                         "ocupada",
-                        aula.getInstrumentoActual() != null
-                                ? aula.getInstrumentoActual().getName()
-                                : null,
                         r.getUsuario().getNombre() + " " + r.getUsuario().getApellidos(),
                         r.getInicio(),
                         r.getFin()
@@ -101,7 +98,6 @@ public class AulaService {
                     aula.getNumero(),
                     aula.getTipo(),
                     "libre",
-                    null,
                     null,
                     null,
                     null

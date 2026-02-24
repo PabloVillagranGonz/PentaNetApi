@@ -9,9 +9,6 @@ import java.time.LocalDateTime;
 @Table(name = "message_groups")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class MessageGroup {
 
     @Id
@@ -19,20 +16,13 @@ public class MessageGroup {
     private Long id;
 
     @ManyToOne
-    @JoinColumn(name = "subject_id")
+    @JoinColumn(name = "subject_id", nullable = false)
     private Subject subject;
-
-    @ManyToOne
-    @JoinColumn(name = "course_id")
-    private Course course;
-
-    @ManyToOne
-    @JoinColumn(name = "center_id")
-    private Center center;
 
     @ManyToOne
     @JoinColumn(name = "created_by")
     private User createdBy;
 
-    private LocalDateTime createdAt;
+    @Column(name = "created_at")
+    private LocalDateTime createdAt = LocalDateTime.now();
 }

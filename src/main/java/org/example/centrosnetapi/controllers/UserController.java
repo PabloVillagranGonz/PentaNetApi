@@ -2,6 +2,7 @@ package org.example.centrosnetapi.controllers;
 
 import lombok.RequiredArgsConstructor;
 import org.example.centrosnetapi.dtos.CourseResponseDTO;
+import org.example.centrosnetapi.dtos.UpdateUserDTO;
 import org.example.centrosnetapi.dtos.UserRequestDTO;
 import org.example.centrosnetapi.dtos.UserResponseDTO;
 import org.example.centrosnetapi.models.Course;
@@ -12,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -59,5 +61,19 @@ public class UserController {
                 .role(user.getRole())
                 .centerId(user.getCenter() != null ? user.getCenter().getId() : null)
                 .build();
+    }
+
+    @PutMapping("/{id}")
+    public void updateUser(
+            @PathVariable Long id,
+            @RequestBody UpdateUserDTO dto
+    ) {
+        userService.update(id, dto);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteUser(@PathVariable Long id) {
+        userService.deleteById(id);
     }
 }

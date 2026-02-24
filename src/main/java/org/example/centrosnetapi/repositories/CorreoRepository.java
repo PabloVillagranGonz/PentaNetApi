@@ -10,27 +10,22 @@ import java.util.Map;
 
 public interface CorreoRepository extends JpaRepository<Correo, Long> {
 
-    long countByEmisor_Id(Long userId);
-    long countByDestinatario_Id(Long userId);
-
     @Query("""
     SELECT new map(
         c.id as id,
         c.asunto as asunto,
         c.cuerpo as cuerpo,
         c.fechaEnvio as fecha_envio,
-        u.nombre as remitenteNombre,
-        u.email as remitenteEmail,
-        uc.leido as leido
+        d.nombre as destinatarioNombre,
+        d.email as destinatarioEmail
     )
-    FROM UsuarioCorreo uc
-    JOIN uc.correo c
-    JOIN c.emisor u
-    WHERE uc.usuario.id = :userId
-      AND uc.eliminado = false
+    FROM Correo c
+    JOIN c.destinatario d
+    WHERE c.emisor.id = :userId
     ORDER BY c.fechaEnvio DESC
 """)
     List<Map<String, Object>> findSentByUser(@Param("userId") Long userId);
+
     // 🔢 CONTADORES
     @Query("SELECT COUNT(c) FROM Correo c WHERE c.emisor.id = :userId")
     int countSent(@Param("userId") Long userId);

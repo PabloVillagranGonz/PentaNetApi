@@ -3,11 +3,11 @@
 -- MySQL 8+
 -- =====================================================
 
-CREATE DATABASE IF NOT EXISTS centrosnet
+CREATE DATABASE IF NOT EXISTS centrosnet2
 CHARACTER SET utf8mb4
 COLLATE utf8mb4_unicode_ci;
 
-USE centrosnet;
+USE centrosnet2;
 
 -- =====================================================
 -- CENTERS
@@ -117,24 +117,25 @@ CREATE TABLE rooms (
 CREATE TABLE subjects (
                           id BIGINT NOT NULL AUTO_INCREMENT,
                           center_id BIGINT NOT NULL,
-                          room_id BIGINT,
-                          teacher_id BIGINT,
-                          code VARCHAR(50),
+                          teacher_id BIGINT NULL,
+
                           name VARCHAR(100) NOT NULL,
                           description TEXT,
                           duration_minutes INT DEFAULT 0,
+
                           PRIMARY KEY (id),
+
                           KEY idx_subjects_center (center_id),
-                          KEY idx_subjects_room (room_id),
                           KEY idx_subjects_teacher (teacher_id),
+
                           CONSTRAINT fk_subjects_center
-                              FOREIGN KEY (center_id) REFERENCES centers(id)
+                              FOREIGN KEY (center_id)
+                                  REFERENCES centers(id)
                                   ON DELETE CASCADE,
-                          CONSTRAINT fk_subjects_room
-                              FOREIGN KEY (room_id) REFERENCES rooms(id)
-                                  ON DELETE SET NULL,
+
                           CONSTRAINT fk_subjects_teacher
-                              FOREIGN KEY (teacher_id) REFERENCES users(id)
+                              FOREIGN KEY (teacher_id)
+                                  REFERENCES users(id)
                                   ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
@@ -161,28 +162,32 @@ CREATE TABLE course_subjects (
 -- =====================================================
 -- ENROLLMENTS
 -- =====================================================
-
 CREATE TABLE enrollments (
                              id BIGINT NOT NULL AUTO_INCREMENT,
-                             student_id BIGINT,
+                             student_id BIGINT NOT NULL,
                              subject_id BIGINT NOT NULL,
-                             course_id BIGINT,
+                             course_id BIGINT NOT NULL,
                              enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                              status VARCHAR(50) DEFAULT 'active',
+
                              PRIMARY KEY (id),
                              UNIQUE KEY unique_enrollment (student_id, subject_id, course_id),
+
                              KEY idx_enrollment_subject (subject_id),
                              KEY idx_enrollment_course (course_id),
                              KEY idx_enrollment_student (student_id),
+
                              CONSTRAINT fk_enrollment_student
                                  FOREIGN KEY (student_id) REFERENCES users(id)
-                                     ON DELETE SET NULL,
+                                     ON DELETE CASCADE,
+
                              CONSTRAINT fk_enrollment_subject
                                  FOREIGN KEY (subject_id) REFERENCES subjects(id)
                                      ON DELETE CASCADE,
+
                              CONSTRAINT fk_enrollment_course
                                  FOREIGN KEY (course_id) REFERENCES courses(id)
-                                     ON DELETE SET NULL
+                                     ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- =====================================================
@@ -221,26 +226,33 @@ CREATE TABLE class_sessions (
 -- =====================================================
 -- TEACHING_ASSIGNMENTS
 -- =====================================================
-
 CREATE TABLE teaching_assignments (
                                       id BIGINT NOT NULL AUTO_INCREMENT,
-                                      teacher_id BIGINT,
                                       subject_id BIGINT NOT NULL,
-                                      course_id BIGINT,
+                                      teacher_id BIGINT NOT NULL,
+                                      course_id BIGINT NOT NULL,
                                       role VARCHAR(50) DEFAULT 'teacher',
+
                                       PRIMARY KEY (id),
                                       UNIQUE KEY unique_teaching (teacher_id, subject_id, course_id),
+
                                       KEY idx_ta_subject (subject_id),
                                       KEY idx_ta_course (course_id),
+
                                       CONSTRAINT fk_ta_teacher
-                                          FOREIGN KEY (teacher_id) REFERENCES users(id)
-                                              ON DELETE SET NULL,
-                                      CONSTRAINT fk_ta_subject
-                                          FOREIGN KEY (subject_id) REFERENCES subjects(id)
+                                          FOREIGN KEY (teacher_id)
+                                              REFERENCES users(id)
                                               ON DELETE CASCADE,
+
+                                      CONSTRAINT fk_ta_subject
+                                          FOREIGN KEY (subject_id)
+                                              REFERENCES subjects(id)
+                                              ON DELETE CASCADE,
+
                                       CONSTRAINT fk_ta_course
-                                          FOREIGN KEY (course_id) REFERENCES courses(id)
-                                              ON DELETE SET NULL
+                                          FOREIGN KEY (course_id)
+                                              REFERENCES courses(id)
+                                              ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- =====================================================
@@ -252,17 +264,15 @@ CREATE TABLE aulas (
                        center_id BIGINT NOT NULL,
                        numero INT NOT NULL,
                        tipo VARCHAR(50),
-                       instrumento_actual BIGINT,
+
                        PRIMARY KEY (id),
                        UNIQUE KEY unique_aula_center (center_id, numero),
                        KEY idx_aulas_center (center_id),
-                       KEY idx_aula_instrumento (instrumento_actual),
+
                        CONSTRAINT fk_aulas_center
-                           FOREIGN KEY (center_id) REFERENCES centers(id)
-                               ON DELETE CASCADE,
-                       CONSTRAINT fk_aulas_instrumento
-                           FOREIGN KEY (instrumento_actual) REFERENCES instruments(id)
-                               ON DELETE SET NULL
+                           FOREIGN KEY (center_id)
+                               REFERENCES centers(id)
+                               ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- =====================================================
@@ -304,32 +314,15 @@ CREATE TABLE reservas (
 CREATE TABLE message_groups (
                                 id BIGINT AUTO_INCREMENT PRIMARY KEY,
 
-                                subject_id BIGINT NULL,
-                                course_id BIGINT NULL,
-                                center_id BIGINT NULL,
-
+                                subject_id BIGINT NOT NULL,
                                 created_by BIGINT NULL,
                                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
                                 CONSTRAINT fk_mg_subject FOREIGN KEY (subject_id)
                                     REFERENCES subjects(id) ON DELETE CASCADE,
 
-                                CONSTRAINT fk_mg_course FOREIGN KEY (course_id)
-                                    REFERENCES courses(id) ON DELETE CASCADE,
-
-                                CONSTRAINT fk_mg_center FOREIGN KEY (center_id)
-                                    REFERENCES centers(id) ON DELETE CASCADE,
-
                                 CONSTRAINT fk_mg_creator FOREIGN KEY (created_by)
-                                    REFERENCES users(id) ON DELETE SET NULL,
-
-                                CONSTRAINT chk_only_one_group_type CHECK (
-                                    (subject_id IS NOT NULL AND course_id IS NULL AND center_id IS NULL)
-                                        OR
-                                    (subject_id IS NULL AND course_id IS NOT NULL AND center_id IS NULL)
-                                        OR
-                                    (subject_id IS NULL AND course_id IS NULL AND center_id IS NOT NULL)
-                                    )
+                                    REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- =====================================================
@@ -337,31 +330,24 @@ CREATE TABLE message_groups (
 -- =====================================================
 CREATE TABLE correos (
                          id BIGINT NOT NULL AUTO_INCREMENT,
-                         user_id BIGINT NULL,
+                         user_id BIGINT NOT NULL,
                          destinatario_id BIGINT NULL,
                          message_group_id BIGINT NULL,
 
                          asunto VARCHAR(255) NOT NULL,
                          cuerpo TEXT NOT NULL,
-
                          fecha_envio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
                          PRIMARY KEY (id),
 
-    -- =========================
-    -- Índices
-    -- =========================
                          KEY idx_correos_user (user_id),
                          KEY idx_correos_destinatario (destinatario_id),
                          KEY idx_correos_group (message_group_id),
 
-    -- =========================
-    -- Foreign Keys
-    -- =========================
                          CONSTRAINT fk_correos_user
                              FOREIGN KEY (user_id)
                                  REFERENCES users(id)
-                                 ON DELETE SET NULL,
+                                 ON DELETE CASCADE,
 
                          CONSTRAINT fk_correos_destinatario
                              FOREIGN KEY (destinatario_id)
@@ -372,7 +358,6 @@ CREATE TABLE correos (
                              FOREIGN KEY (message_group_id)
                                  REFERENCES message_groups(id)
                                  ON DELETE SET NULL
-
 ) ENGINE=InnoDB
 DEFAULT CHARSET=utf8mb4
 COLLATE=utf8mb4_unicode_ci;
@@ -380,23 +365,28 @@ COLLATE=utf8mb4_unicode_ci;
 -- =====================================================
 -- USUARIOS_CORREOS
 -- =====================================================
-
 CREATE TABLE usuarios_correos (
                                   id BIGINT NOT NULL AUTO_INCREMENT,
                                   correo_id BIGINT NOT NULL,
-                                  usuario_id BIGINT,
+                                  usuario_id BIGINT NOT NULL,
                                   leido TINYINT(1) DEFAULT 0,
                                   eliminado TINYINT(1) DEFAULT 0,
                                   archivado TINYINT(1) DEFAULT 0,
                                   fecha_leido TIMESTAMP NULL,
                                   fecha_eliminado TIMESTAMP NULL,
+
                                   PRIMARY KEY (id),
+
                                   KEY idx_uc_correo (correo_id),
                                   KEY idx_uc_usuario (usuario_id, eliminado, archivado),
+
                                   CONSTRAINT fk_uc_correo
-                                      FOREIGN KEY (correo_id) REFERENCES correos(id)
+                                      FOREIGN KEY (correo_id)
+                                          REFERENCES correos(id)
                                           ON DELETE CASCADE,
+
                                   CONSTRAINT fk_uc_usuario
-                                      FOREIGN KEY (usuario_id) REFERENCES users(id)
-                                          ON DELETE SET NULL
+                                      FOREIGN KEY (usuario_id)
+                                          REFERENCES users(id)
+                                          ON DELETE CASCADE
 ) ENGINE=InnoDB;

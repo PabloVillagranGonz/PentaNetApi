@@ -20,10 +20,6 @@ public class Aula {
     private String tipo;
 
     @ManyToOne
-    @JoinColumn(name = "instrumento_actual")
-    private Instrument instrumentoActual;
-
-    @ManyToOne
     @JoinColumn(name = "center_id")
     private Center center;
 

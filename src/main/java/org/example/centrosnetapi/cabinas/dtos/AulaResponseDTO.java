@@ -14,8 +14,6 @@ public class AulaResponseDTO {
     private String tipo;
     private String estado;
 
-    private String instrumentoNombre;
-
     private String alumnoNombre;
     private LocalDateTime inicio;
     private LocalDateTime fin;

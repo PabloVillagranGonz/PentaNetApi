@@ -17,8 +17,6 @@ public class Subject {
     @Column(nullable = false)
     private String name;
 
-    private String code;
-
     @Column(length = 1000)
     private String description;
 

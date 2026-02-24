@@ -54,7 +54,7 @@ public class CorreoService {
         );
     }
 
-    // ✉️ Envío individual
+    @Transactional
     public void sendCorreo(
             Long emisorId,
             Long destinatarioId,
@@ -62,29 +62,40 @@ public class CorreoService {
             String cuerpo
     ) {
 
+        User emisor = userRepository.findById(emisorId)
+                .orElseThrow(() -> new RuntimeException("EMISOR_NOT_FOUND"));
+
+        User destinatario = userRepository.findById(destinatarioId)
+                .orElseThrow(() -> new RuntimeException("DESTINATARIO_NOT_FOUND"));
+
+        // 1️⃣ Crear correo
         Correo correo = new Correo();
-
-        correo.setEmisor(
-                userRepository.findById(emisorId)
-                        .orElseThrow(() -> new RuntimeException("EMISOR_NOT_FOUND"))
-        );
-
-        correo.setDestinatario(
-                userRepository.findById(destinatarioId)
-                        .orElseThrow(() -> new RuntimeException("DESTINATARIO_NOT_FOUND"))
-        );
-
+        correo.setEmisor(emisor);
+        correo.setDestinatario(destinatario);
         correo.setAsunto(asunto);
         correo.setCuerpo(cuerpo);
 
         correoRepository.save(correo);
 
-        UsuarioCorreo uc = new UsuarioCorreo();
-        uc.setCorreo(correo);
-        uc.setUsuario(correo.getDestinatario());
-        uc.setLeido(false);
+        // 2️⃣ Registro para destinatario (NO leído)
+        UsuarioCorreo ucDestinatario = new UsuarioCorreo();
+        ucDestinatario.setCorreo(correo);
+        ucDestinatario.setUsuario(destinatario);
+        ucDestinatario.setLeido(false);
+        ucDestinatario.setEliminado(false);
+        ucDestinatario.setArchivado(false);
 
-        usuarioCorreoRepository.save(uc);
+        usuarioCorreoRepository.save(ucDestinatario);
+
+        // 3️⃣ Registro para emisor (YA leído)
+        UsuarioCorreo ucEmisor = new UsuarioCorreo();
+        ucEmisor.setCorreo(correo);
+        ucEmisor.setUsuario(emisor);
+        ucEmisor.setLeido(true);
+        ucEmisor.setEliminado(false);
+        ucEmisor.setArchivado(false);
+
+        usuarioCorreoRepository.save(ucEmisor);
     }
 
     @Transactional

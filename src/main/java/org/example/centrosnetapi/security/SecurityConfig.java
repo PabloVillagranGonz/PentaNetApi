@@ -13,10 +13,13 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 
 @Configuration
@@ -36,6 +39,13 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
+
+                // 🔐 Manejo claro de errores
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(authenticationEntryPoint())
+                        .accessDeniedHandler(accessDeniedHandler())
+                )
+
                 .authorizeHttpRequests(auth -> auth
 
                         // 🔥 CORS PREFLIGHT
@@ -55,7 +65,6 @@ public class SecurityConfig {
                         // =====================================================
                         // 🎹 AULAS
                         // =====================================================
-
                         .requestMatchers(HttpMethod.GET, "/api/aulas/**")
                         .hasAnyRole("ADMIN", "SECRETARIA", "STUDENT")
 
@@ -71,21 +80,24 @@ public class SecurityConfig {
                         // =====================================================
                         // 🕒 RESERVAS
                         // =====================================================
+                        .requestMatchers(HttpMethod.GET, "/api/reservas/**")
+                        .hasAnyRole("ADMIN", "SECRETARIA", "STUDENT")
 
-                        .requestMatchers("/api/reservas/**")
+                        .requestMatchers(HttpMethod.POST, "/api/reservas/**")
                         .hasAnyRole("ADMIN", "SECRETARIA")
+
+                        .requestMatchers(HttpMethod.DELETE, "/api/reservas/**")
+                        .hasRole("ADMIN")
 
                         // =====================================================
                         // 👤 USUARIOS
                         // =====================================================
-
-                        .requestMatchers("/api/usuarios/**")
+                        .requestMatchers("/api/users/**")
                         .hasAnyRole("ADMIN", "SECRETARIA")
 
                         // =====================================================
                         // 📧 CORREOS
                         // =====================================================
-
                         .requestMatchers("/api/correos/**")
                         .hasAnyRole("ADMIN", "STUDENT", "TEACHER", "SECRETARIA")
 
@@ -97,14 +109,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/subjects/mine")
                         .hasRole("TEACHER")
 
-                        // 🔐 ADMIN → gestión completa de asignaturas
+                        // 🔐 ADMIN → gestión completa
                         .requestMatchers("/api/subjects/**")
                         .hasRole("ADMIN")
 
                         // =====================================================
                         // 🔐 ADMIN GENERAL
                         // =====================================================
-
                         .requestMatchers(
                                 "/admin/**",
                                 "/api/rooms/**",
@@ -117,15 +128,42 @@ public class SecurityConfig {
                         // 🔒 RESTO
                         .anyRequest().authenticated()
                 )
+
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
+    // =====================================================
+    // 🔐 MANEJO DE ERRORES
+    // =====================================================
+
+    @Bean
+    public AuthenticationEntryPoint authenticationEntryPoint() {
+        return (request, response, authException) -> {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "No autenticado");
+        };
+    }
+
+    @Bean
+    public AccessDeniedHandler accessDeniedHandler() {
+        return (request, response, accessDeniedException) -> {
+            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Sin permisos");
+        };
+    }
+
+    // =====================================================
+    // 🔐 PASSWORD ENCODER
+    // =====================================================
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
+
+    // =====================================================
+    // 🌍 CORS
+    // =====================================================
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {

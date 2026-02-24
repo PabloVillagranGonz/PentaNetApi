@@ -38,7 +38,6 @@ public class SubjectService {
                 );
 
         subject.setName(dto.getName());
-        subject.setCode(dto.getCode());
         subject.setDescription(dto.getDescription());
         subject.setDurationMinutes(dto.getDurationMinutes());
 
@@ -70,7 +69,6 @@ public class SubjectService {
 
         Subject subject = new Subject();
         subject.setName(dto.getName());
-        subject.setCode(dto.getCode());
         subject.setDescription(dto.getDescription());
         subject.setDurationMinutes(dto.getDurationMinutes());
         subject.setCenter(center);
@@ -134,7 +132,6 @@ public class SubjectService {
                 .map(subject -> SubjectResponseDTO.builder()
                         .id(subject.getId())
                         .name(subject.getName())
-                        .code(subject.getCode())
                         .description(subject.getDescription())
                         .durationMinutes(subject.getDurationMinutes())
                         .centerId(subject.getCenter().getId())
@@ -147,7 +144,6 @@ public class SubjectService {
         return SubjectResponseDTO.builder()
                 .id(subject.getId())
                 .name(subject.getName())
-                .code(subject.getCode())
                 .description(subject.getDescription())
                 .durationMinutes(subject.getDurationMinutes())
                 .centerId(

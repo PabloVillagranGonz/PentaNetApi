@@ -89,7 +89,6 @@ public class StudentService {
         return SubjectResponseDTO.builder()
                 .id(s.getId())
                 .name(s.getName())
-                .code(s.getCode())
                 .description(s.getDescription())
                 .durationMinutes(s.getDurationMinutes())
                 .centerId(

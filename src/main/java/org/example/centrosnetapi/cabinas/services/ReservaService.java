@@ -1,35 +1,30 @@
 package org.example.centrosnetapi.cabinas.services;
 
 import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
 import org.example.centrosnetapi.cabinas.models.Aula;
 import org.example.centrosnetapi.cabinas.models.Reserva;
 import org.example.centrosnetapi.cabinas.repositories.AulaRepository;
 import org.example.centrosnetapi.cabinas.repositories.ReservaRepository;
 import org.example.centrosnetapi.cabinas.repositories.UsuarioRepository;
 import org.example.centrosnetapi.models.User;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 @Service
+@RequiredArgsConstructor
 public class ReservaService {
 
-    @Autowired
-    private ReservaRepository reservaRepository;
-
-    @Autowired
-    private UsuarioRepository usuarioRepository;
-
-    @Autowired
-    private AulaRepository aulaRepository;
-
+    private final ReservaRepository reservaRepository;
+    private final UsuarioRepository usuarioRepository;
+    private final AulaRepository aulaRepository;
 
     // ==========================================
     // 🚀 CREAR RESERVA
@@ -40,14 +35,31 @@ public class ReservaService {
         if (duracionMin < 30 || duracionMin > 60) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Duración inválida"
+                    "Duración inválida (mínimo 30, máximo 60 minutos)"
             );
         }
 
-        var auth = SecurityContextHolder.getContext().getAuthentication();
-        var secretaria = (User) auth.getPrincipal();
+        // 🔐 Obtener usuario autenticado correctamente
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
-        var usuario = usuarioRepository.findById(usuarioId)
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Usuario no autenticado"
+            );
+        }
+
+        Object principal = auth.getPrincipal();
+
+        if (!(principal instanceof User secretaria)) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Principal inválido"
+            );
+        }
+
+        // 👤 Alumno
+        User usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(() ->
                         new ResponseStatusException(
                                 HttpStatus.NOT_FOUND,
@@ -55,7 +67,8 @@ public class ReservaService {
                         )
                 );
 
-        var aula = aulaRepository.findById(aulaId)
+        // 🎹 Aula
+        Aula aula = aulaRepository.findById(aulaId)
                 .orElseThrow(() ->
                         new ResponseStatusException(
                                 HttpStatus.NOT_FOUND,
@@ -63,7 +76,11 @@ public class ReservaService {
                         )
                 );
 
-        if (!secretaria.getCenter().getId().equals(aula.getCenter().getId())) {
+        // 🔒 Validar mismo centro
+        if (secretaria.getCenter() == null ||
+                aula.getCenter() == null ||
+                !secretaria.getCenter().getId().equals(aula.getCenter().getId())) {
+
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "No puedes reservar aulas de otro centro"
@@ -80,16 +97,15 @@ public class ReservaService {
 
         for (Reserva r : reservasAlumno) {
 
-            if (r.getFin().isBefore(ahora)) {
-                // 🔥 cerrar automáticamente si está vencida
-                r.setFinReal(ahora);
-                continue;
+            if (r.getFin().isAfter(ahora)) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "El alumno ya tiene una reserva activa"
+                );
             }
 
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "El alumno ya tiene una reserva activa"
-            );
+            // Si está vencida, la cerramos automáticamente
+            r.setFinReal(ahora);
         }
 
         // ==============================
@@ -100,17 +116,15 @@ public class ReservaService {
 
         for (Reserva r : reservasAula) {
 
-            if (r.getFin().isBefore(ahora)) {
-                // 🔥 cerrar automáticamente si está vencida
-                r.setFinReal(ahora);
-                r.getAula().setInstrumentoActual(null);
-                continue;
+            if (r.getFin().isAfter(ahora)) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "El aula ya está ocupada"
+                );
             }
 
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "El aula ya está ocupada"
-            );
+            // Si está vencida, la cerramos automáticamente
+            r.setFinReal(ahora);
         }
 
         // ==============================
@@ -127,7 +141,6 @@ public class ReservaService {
         return reservaRepository.save(reserva);
     }
 
-
     // ==========================================
     // 🛑 FINALIZAR RESERVA
     // ==========================================
@@ -139,17 +152,21 @@ public class ReservaService {
 
         if (reservas.isEmpty()) return;
 
-        Reserva r = reservas.get(0); // Tomamos la primera válida
-
         LocalDateTime ahora = LocalDateTime.now();
 
-        r.setFinReal(ahora);
+        for (Reserva r : reservas) {
 
-        if (ahora.isBefore(r.getFin())) {
-            r.setFinalizadaAntes(true);
+            if (r.getFin().isAfter(ahora)) {
+
+                r.setFinReal(ahora);
+
+                if (ahora.isBefore(r.getFin())) {
+                    r.setFinalizadaAntes(true);
+                }
+
+                break; // solo una activa
+            }
         }
-
-        r.getAula().setInstrumentoActual(null);
     }
 
     // ==========================================
@@ -158,7 +175,6 @@ public class ReservaService {
     public List<Reserva> obtenerReservasActivas() {
         return reservaRepository.findByFinRealIsNull();
     }
-
 
     // ==========================================
     // ⏲ CIERRE AUTOMÁTICO
@@ -173,15 +189,10 @@ public class ReservaService {
         for (Reserva r : activas) {
 
             if (r.getFin().isBefore(ahora)) {
-
                 r.setFinReal(ahora);
-
-                Aula aula = r.getAula();
-                aula.setInstrumentoActual(null);
             }
         }
     }
-
 
     // ==========================================
     // 📜 HISTORIAL
@@ -189,5 +200,4 @@ public class ReservaService {
     public List<Reserva> obtenerHistorial() {
         return reservaRepository.findAllByOrderByInicioDesc();
     }
-
 }
