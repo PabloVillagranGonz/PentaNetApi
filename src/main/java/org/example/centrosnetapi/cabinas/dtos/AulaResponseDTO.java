@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 public class AulaResponseDTO {
 
     private Long id;
-    private Integer numero;
+    private String numero;
     private String tipo;
     private String estado;
 

@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class AulaDisponibilidadDTO {
 
-    private Integer numero;
+    private String numero;
     private String estado;
     private LocalDateTime fin;
 }

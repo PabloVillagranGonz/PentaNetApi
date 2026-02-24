@@ -3,11 +3,11 @@
 -- MySQL 8+
 -- =====================================================
 
-CREATE DATABASE IF NOT EXISTS centrosnet2
+CREATE DATABASE IF NOT EXISTS AulaSync
 CHARACTER SET utf8mb4
 COLLATE utf8mb4_unicode_ci;
 
-USE centrosnet2;
+USE AulaSync;
 
 -- =====================================================
 -- CENTERS
@@ -262,7 +262,7 @@ CREATE TABLE teaching_assignments (
 CREATE TABLE aulas (
                        id BIGINT NOT NULL AUTO_INCREMENT,
                        center_id BIGINT NOT NULL,
-                       numero INT NOT NULL,
+                       numero VARCHAR NOT NULL,
                        tipo VARCHAR(50),
 
                        PRIMARY KEY (id),

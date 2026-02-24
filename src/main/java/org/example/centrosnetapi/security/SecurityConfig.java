@@ -90,7 +90,13 @@ public class SecurityConfig {
                         .hasRole("ADMIN")
 
                         // =====================================================
-                        // 👤 USUARIOS
+                        // 👤 USUARIOS - BÚSQUEDA POR EMAIL
+                        // =====================================================
+                        .requestMatchers(HttpMethod.GET, "/api/users/email")
+                        .hasAnyRole("ADMIN", "SECRETARIA", "TEACHER")
+
+                        // =====================================================
+                        // 👤 USUARIOS - GESTIÓN
                         // =====================================================
                         .requestMatchers("/api/users/**")
                         .hasAnyRole("ADMIN", "SECRETARIA")

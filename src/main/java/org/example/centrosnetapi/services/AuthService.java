@@ -24,7 +24,7 @@ public class AuthService {
     // ================= LOGIN =================
     public UserResponseDTO login(LoginRequest request) {
 
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByEmailIgnoreCase(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
 
         System.out.println("LOGIN DEBUG");

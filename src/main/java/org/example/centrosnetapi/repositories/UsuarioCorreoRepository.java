@@ -11,24 +11,24 @@ public interface UsuarioCorreoRepository extends JpaRepository<UsuarioCorreo, Lo
 
     // 📥 INBOX
     @Query("""
-        SELECT new map(
-            c.id as id,
-            c.asunto as asunto,
-            c.cuerpo as cuerpo,
-            c.fechaEnvio as fecha_envio,
-            u.nombre as remitenteNombre,
-            u.email as remitenteEmail,
-            uc.leido as leido
-        )
-        FROM UsuarioCorreo uc
-        JOIN uc.correo c
-        JOIN c.emisor u
-        WHERE uc.usuario.id = :userId
-          AND uc.eliminado = false
-        ORDER BY c.fechaEnvio DESC
-    """)
+    SELECT new map(
+        c.id as id,
+        c.asunto as asunto,
+        c.cuerpo as cuerpo,
+        c.fechaEnvio as fecha_envio,
+        u.nombre as remitenteNombre,
+        u.email as remitenteEmail,
+        uc.leido as leido
+    )
+    FROM UsuarioCorreo uc
+    JOIN uc.correo c
+    JOIN c.emisor u
+    WHERE uc.usuario.id = :userId
+      AND uc.eliminado = false
+      AND c.emisor.id <> :userId
+    ORDER BY c.fechaEnvio DESC
+""")
     List<Map<String, Object>> findInbox(@Param("userId") Long userId);
-
     // ✅ LEÍDO
     @Modifying
     @Query("""

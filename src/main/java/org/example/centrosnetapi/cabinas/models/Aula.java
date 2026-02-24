@@ -14,8 +14,8 @@ public class Aula {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true, nullable = false)
-    private Integer numero;
+    @Column(nullable = false)
+    private String numero;
 
     private String tipo;
 

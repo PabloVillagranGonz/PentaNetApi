@@ -52,7 +52,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String email = jwtService.extractEmail(token);
         System.out.println("✅ TOKEN EMAIL: " + email);
 
-        User user = userRepository.findByEmail(email).orElse(null);
+        User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
 
         if (user != null &&
                 SecurityContextHolder.getContext().getAuthentication() == null) {

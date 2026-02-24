@@ -48,9 +48,12 @@ public class UserController {
         return userService.findById(id);
     }
 
-    @GetMapping("/email/{email}")
-    public UserResponseDTO getUserByEmail(@PathVariable String email) {
-        User user = userRepository.findByEmail(email)
+    @GetMapping("/email")
+    public UserResponseDTO getUserByEmail(@RequestParam String email) {
+
+        email = email.toLowerCase().trim();
+
+        User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
 
         return UserResponseDTO.builder()

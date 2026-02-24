@@ -16,11 +16,14 @@ public interface CorreoRepository extends JpaRepository<Correo, Long> {
         c.asunto as asunto,
         c.cuerpo as cuerpo,
         c.fechaEnvio as fecha_envio,
-        d.nombre as destinatarioNombre,
-        d.email as destinatarioEmail
+        CASE
+            WHEN c.messageGroup IS NOT NULL
+                THEN c.messageGroup.subject.name
+            ELSE d.email
+        END as destinatario
     )
     FROM Correo c
-    JOIN c.destinatario d
+    LEFT JOIN c.destinatario d
     WHERE c.emisor.id = :userId
     ORDER BY c.fechaEnvio DESC
 """)

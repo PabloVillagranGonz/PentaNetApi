@@ -1,6 +1,6 @@
-# 📧 CentrosNet – Sistema de Gestión Académica con Mensajería
+# 📧 PentaNet – Sistema de Gestión Académica con Mensajería
 
-CentrosNet es una aplicación multiplataforma desarrollada con Flutter (frontend) y Spring Boot + MySQL + JWT (backend), diseñada para la gestión académica de centros educativos musicales.
+Penta es una aplicación multiplataforma desarrollada con Flutter (frontend) y Spring Boot + MySQL + JWT (backend), diseñada para la gestión académica de centros educativos musicales.
 
 Permite administrar centros, cursos, asignaturas, profesores y alumnos, además de incluir un sistema interno de mensajería.
 

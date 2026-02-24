@@ -120,7 +120,7 @@ public class SubjectService {
 
     public List<SubjectResponseDTO> getSubjectsForTeacher(String email) {
 
-        User teacher = userRepository.findByEmail(email)
+        User teacher = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
 
         if (teacher.getRole() != Role.TEACHER) {

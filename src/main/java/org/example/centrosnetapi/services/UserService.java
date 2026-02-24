@@ -17,6 +17,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -55,7 +56,7 @@ public class UserService {
 
         user.setNombre(dto.getNombre());
         user.setApellidos(dto.getApellidos());
-        user.setEmail(dto.getEmail());
+        user.setEmail(dto.getEmail().toLowerCase().trim());
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
         user.setRole(dto.getRole());
         user.setPhone(dto.getPhone());
@@ -114,7 +115,10 @@ public class UserService {
     public void update(Long id, UpdateUserDTO dto) {
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String currentRole = auth.getAuthorities().iterator().next().getAuthority();
+        String currentEmail = auth.getName();
+
+        User currentUser = userRepository.findByEmailIgnoreCase(currentEmail)
+                .orElseThrow(() -> new RuntimeException("CURRENT_USER_NOT_FOUND"));
 
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
@@ -124,15 +128,37 @@ public class UserService {
             throw new RuntimeException("CANNOT_EDIT_ADMIN_USER");
         }
 
-        if (dto.getNombre() != null) user.setNombre(dto.getNombre());
-        if (dto.getApellidos() != null) user.setApellidos(dto.getApellidos());
-        if (dto.getEmail() != null) user.setEmail(dto.getEmail());
-        if (dto.getPhone() != null) user.setPhone(dto.getPhone());
+        // 🔒 Solo se pueden editar usuarios del mismo centro
+        if (currentUser.getCenter() != null &&
+                user.getCenter() != null &&
+                !currentUser.getCenter().getId().equals(user.getCenter().getId())) {
+            throw new RuntimeException("CANNOT_EDIT_USER_FROM_OTHER_CENTER");
+        }
+
+        // ================= CAMPOS BÁSICOS =================
+
+        if (dto.getNombre() != null) {
+            user.setNombre(dto.getNombre().trim());
+        }
+
+        if (dto.getApellidos() != null) {
+            user.setApellidos(dto.getApellidos().trim());
+        }
+
+        if (dto.getEmail() != null) {
+            user.setEmail(dto.getEmail().toLowerCase().trim());
+        }
+
+        if (dto.getPhone() != null) {
+            user.setPhone(dto.getPhone().trim());
+        }
 
         if (dto.getDni() != null) {
             validateDni(dto.getDni());
             user.setDni(dto.getDni().toUpperCase().trim());
         }
+
+        // ================= ROLE =================
 
         if (dto.getRole() != null) {
 
@@ -142,12 +168,14 @@ public class UserService {
             }
 
             // 🔒 SECRETARIA no puede cambiar roles
-            if (currentRole.equals("ROLE_SECRETARIA")) {
+            if (currentUser.getRole() == Role.SECRETARIA) {
                 throw new RuntimeException("SECRETARIA_CANNOT_CHANGE_ROLES");
             }
 
             user.setRole(dto.getRole());
         }
+
+        // ================= RELACIONES =================
 
         if (dto.getCenter_id() != null) {
             user.setCenter(
@@ -168,6 +196,129 @@ public class UserService {
                     instrumentRepository.findById(dto.getInstrument_id())
                             .orElseThrow(() -> new RuntimeException("INSTRUMENT_NOT_FOUND"))
             );
+        }
+
+        userRepository.save(user);
+    }
+    // ============================================================
+    // UPDATE PARTIAL (PATCH dinámico)
+    // ============================================================
+
+    public void updatePartial(Long id, Map<String, Object> data) {
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String currentRole = auth.getAuthorities().iterator().next().getAuthority();
+
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
+
+        // 🔒 No se puede editar un ADMIN
+        if (user.getRole() == Role.ADMIN) {
+            throw new RuntimeException("CANNOT_EDIT_ADMIN_USER");
+        }
+
+        // 🔒 SECRETARIA no puede editar usuarios que no sean STUDENT
+        if (currentRole.equals("ROLE_SECRETARIA")) {
+
+            if (user.getRole() != Role.STUDENT) {
+                throw new RuntimeException("SECRETARIA_CAN_ONLY_EDIT_STUDENTS");
+            }
+
+            // 🔒 SECRETARIA no puede cambiar roles
+            if (data.containsKey("role")) {
+                throw new RuntimeException("SECRETARIA_CANNOT_CHANGE_ROLES");
+            }
+
+            // 🔒 SECRETARIA no puede cambiar centro
+            if (data.containsKey("center_id")) {
+                throw new RuntimeException("SECRETARIA_CANNOT_CHANGE_CENTER");
+            }
+        }
+
+        // ================= CAMPOS BÁSICOS =================
+
+        if (data.containsKey("nombre")) {
+            user.setNombre((String) data.get("nombre"));
+        }
+
+        if (data.containsKey("apellidos")) {
+            user.setApellidos((String) data.get("apellidos"));
+        }
+
+        if (data.containsKey("email")) {
+            user.setEmail((String) data.get("email"));
+        }
+
+        if (data.containsKey("phone")) {
+            user.setPhone((String) data.get("phone"));
+        }
+
+        if (data.containsKey("dni")) {
+            String dni = (String) data.get("dni");
+            validateDni(dni);
+            user.setDni(dni.toUpperCase().trim());
+        }
+
+        // ================= ROLE =================
+
+        if (data.containsKey("role")) {
+
+            Role newRole = Role.valueOf(data.get("role").toString());
+
+            // 🔒 Nadie puede asignar ADMIN
+            if (newRole == Role.ADMIN) {
+                throw new RuntimeException("NO_PERMISSION_TO_ASSIGN_ADMIN");
+            }
+
+            user.setRole(newRole);
+        }
+
+        // ================= CENTER =================
+
+        if (data.containsKey("center_id")) {
+
+            Object centerId = data.get("center_id");
+
+            if (centerId == null) {
+                user.setCenter(null);
+            } else {
+                user.setCenter(
+                        centerRepository.findById(Long.valueOf(centerId.toString()))
+                                .orElseThrow(() -> new RuntimeException("CENTER_NOT_FOUND"))
+                );
+            }
+        }
+
+        // ================= COURSE =================
+
+        if (data.containsKey("course_id")) {
+
+            Object courseId = data.get("course_id");
+
+            if (courseId == null) {
+                user.setCourse(null);
+            } else {
+                user.setCourse(
+                        courseRepository.findById(Long.valueOf(courseId.toString()))
+                                .orElseThrow(() -> new RuntimeException("COURSE_NOT_FOUND"))
+                );
+            }
+        }
+
+        // ================= INSTRUMENT =================
+
+        if (data.containsKey("instrument_id")) {
+
+            Object instrumentId = data.get("instrument_id");
+
+            if (instrumentId == null) {
+                user.setInstrument(null);
+            } else {
+                user.setInstrument(
+                        instrumentRepository.findById(Long.valueOf(instrumentId.toString()))
+                                .orElseThrow(() -> new RuntimeException("INSTRUMENT_NOT_FOUND"))
+                );
+            }
         }
 
         userRepository.save(user);
