@@ -1,16 +1,18 @@
 package org.example.centrosnetapi.controllers;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.example.centrosnetapi.dtos.SendCorreoRequestDTO;
-import org.example.centrosnetapi.dtos.SendGroupCorreoRequestDTO;
+import org.example.centrosnetapi.dtos.Correo.CorreoResponseDTO;
+import org.example.centrosnetapi.dtos.Correo.SendCorreoRequestDTO;
+import org.example.centrosnetapi.dtos.Correo.SendGroupCorreoRequestDTO;
+import org.example.centrosnetapi.models.Usuario;
 import org.example.centrosnetapi.services.CorreoService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @PreAuthorize("isAuthenticated()")
 @RestController
@@ -23,62 +25,71 @@ public class CorreoController {
 
     // 📥 INBOX
     @GetMapping("/inbox")
-    public List<Map<String, Object>> getInbox(Authentication authentication) {
-        return correoService.getInboxByEmail(authentication.getName());
+    public ResponseEntity<List<CorreoResponseDTO>> inbox(
+            @AuthenticationPrincipal Usuario usuario
+    ) {
+        return ResponseEntity.ok(
+                correoService.getInbox(usuario)
+        );
     }
 
     // 📤 ENVIADOS
     @GetMapping("/sent")
-    public List<Map<String, Object>> getSent(Authentication authentication) {
-        return correoService.getSentByEmail(authentication.getName());
+    public ResponseEntity<List<CorreoResponseDTO>> sent(
+            @AuthenticationPrincipal Usuario usuario
+    ) {
+        return ResponseEntity.ok(
+                correoService.getSent(usuario)
+        );
     }
 
     // ✅ MARCAR COMO LEÍDO
     @PutMapping("/{correoId}/read")
-    public void markAsRead(
+    public ResponseEntity<Void> markAsRead(
             @PathVariable Long correoId,
-            Authentication authentication
+            @AuthenticationPrincipal Usuario usuario
     ) {
-        correoService.markAsRead(correoId, authentication.getName());
+        correoService.markAsRead(correoId, usuario);
+        return ResponseEntity.noContent().build();
     }
 
     // 🗑️ BORRAR
     @DeleteMapping("/{correoId}")
-    public void deleteForUser(
+    public ResponseEntity<Void> delete(
             @PathVariable Long correoId,
-            Authentication authentication
+            @AuthenticationPrincipal Usuario usuario
     ) {
-        correoService.deleteForUser(correoId, authentication.getName());
-    }
-
-    // 🔢 CONTADOR
-    @GetMapping("/count")
-    public Map<String, Integer> getEmailCount(Authentication authentication) {
-        return correoService.getEmailCount(authentication.getName());
+        correoService.deleteForUser(correoId, usuario);
+        return ResponseEntity.noContent().build();
     }
 
     // ✉️ ENVÍO INDIVIDUAL
     @PostMapping("/send")
-    public void sendCorreo(
-            @RequestBody SendCorreoRequestDTO dto,
-            Authentication authentication
+    public ResponseEntity<Void> send(
+            @Valid @RequestBody SendCorreoRequestDTO dto,
+            @AuthenticationPrincipal Usuario usuario
     ) {
-        correoService.sendCorreo(
-                authentication.getName(),
-                dto.getDestinatarioId(),
-                dto.getAsunto(),
-                dto.getCuerpo()
-        );
+        correoService.sendCorreo(usuario, dto);
+        return ResponseEntity.ok().build();
     }
 
     // 👥 ENVÍO A GRUPO
     @PostMapping("/send/group")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ResponseEntity<?> sendToGroup(
-            @RequestBody SendGroupCorreoRequestDTO request,
-            Authentication authentication
+    @PreAuthorize("hasAnyRole('PROFESOR','ADMIN')")
+    public ResponseEntity<Void> sendGroup(
+            @RequestBody SendGroupCorreoRequestDTO dto,
+            @AuthenticationPrincipal Usuario usuario
     ) {
-        correoService.sendToGroup(request, authentication.getName());
-        return ResponseEntity.ok("Mensaje enviado al grupo correctamente");
+        correoService.sendToGroup(dto, usuario);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/unread-count")
+    public ResponseEntity<Long> unreadCount(
+            @AuthenticationPrincipal Usuario usuario
+    ) {
+        return ResponseEntity.ok(
+                correoService.countUnread(usuario)
+        );
     }
 }

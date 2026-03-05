@@ -2,8 +2,8 @@ package org.example.centrosnetapi.services;
 
 
 import lombok.RequiredArgsConstructor;
-import org.example.centrosnetapi.dtos.InstrumentResponseDTO;
-import org.example.centrosnetapi.repositories.InstrumentRepository;
+import org.example.centrosnetapi.dtos.Instrumento.InstrumentResponseDTO;
+import org.example.centrosnetapi.repositories.InstrumentoRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -12,17 +12,16 @@ import java.util.List;
 @RequiredArgsConstructor
 public class InstrumentService {
 
-    private final InstrumentRepository instrumentRepository;
+    private final InstrumentoRepository instrumentRepository;
 
     public List<InstrumentResponseDTO> findAll() {
         return instrumentRepository.findAll()
                 .stream()
-                .map(i -> {
-                    InstrumentResponseDTO dto = new InstrumentResponseDTO();
-                    dto.setId(i.getId());
-                    dto.setName(i.getName());
-                    return dto;
-                })
+                .map(i -> InstrumentResponseDTO.builder()
+                        .id(i.getId())
+                        .name(i.getNombre())
+                        .build()
+                )
                 .toList();
     }
 }

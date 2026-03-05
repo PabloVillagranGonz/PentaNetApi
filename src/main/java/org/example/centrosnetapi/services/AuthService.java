@@ -1,15 +1,13 @@
 package org.example.centrosnetapi.services;
 
 import lombok.RequiredArgsConstructor;
-import org.example.centrosnetapi.dtos.ChangePasswordRequestDTO;
-import org.example.centrosnetapi.dtos.LoginRequest;
-import org.example.centrosnetapi.dtos.UserResponseDTO;
-import org.example.centrosnetapi.models.Role;
-import org.example.centrosnetapi.models.User;
-import org.example.centrosnetapi.repositories.UserRepository;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
+import org.example.centrosnetapi.dtos.Auth.ChangePasswordRequestDTO;
+import org.example.centrosnetapi.dtos.Auth.LoginRequestDTO;
+import org.example.centrosnetapi.dtos.Auth.LoginResponseDTO;
+import org.example.centrosnetapi.exceptions.ApiException;
+import org.example.centrosnetapi.models.Usuario;
+import org.example.centrosnetapi.repositories.UsuarioRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -17,63 +15,64 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AuthService {
 
-    private final UserRepository userRepository;
+    private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
 
-    // ================= LOGIN =================
-    public UserResponseDTO login(LoginRequest request) {
+    // ============================================================
+    // LOGIN
+    // ============================================================
 
-        User user = userRepository.findByEmailIgnoreCase(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
+    public LoginResponseDTO login(LoginRequestDTO request) {
 
-        System.out.println("LOGIN DEBUG");
-        System.out.println("RAW: " + request.getPassword());
-        System.out.println("HASH DB: " + user.getPassword());
-        System.out.println("MATCH: " +
-                passwordEncoder.matches(request.getPassword(), user.getPassword()));
+        String email = request.getEmail().toLowerCase().trim();
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new RuntimeException("INVALID_PASSWORD");
+        Usuario usuario = usuarioRepository.findByEmailIgnoreCase(email)
+                .orElseThrow(() ->
+                        new ApiException("USER_NOT_FOUND", HttpStatus.NOT_FOUND)
+                );
+
+        if (!passwordEncoder.matches(request.getPassword(), usuario.getPassword())) {
+            throw new ApiException("INVALID_PASSWORD", HttpStatus.UNAUTHORIZED);
         }
 
-        if (!Boolean.TRUE.equals(user.getActive())) {
-            throw new RuntimeException("USER_DISABLED");
+        if (!Boolean.TRUE.equals(usuario.getActivo())) {
+            throw new ApiException("USER_DISABLED", HttpStatus.FORBIDDEN);
         }
 
-        // 🔐 GENERAR TOKEN
-        String token = jwtService.generateToken(user);
+        String token = jwtService.generateToken(usuario);
 
-        return UserResponseDTO.builder()
-                .id(user.getId())
-                .nombre(user.getNombre())
-                .apellidos(user.getApellidos())
-                .email(user.getEmail())
-                .role(user.getRole())
+        return LoginResponseDTO.builder()
+                .id(usuario.getId())
+                .nombre(usuario.getNombre())
+                .apellidos(usuario.getApellidos())
+                .email(usuario.getEmail())
+                .rol(usuario.getRol().name())
                 .token(token)
 
-                .phone(user.getPhone())
-                .dni(user.getDni())
+                .centroId(usuario.getCentro() != null ? usuario.getCentro().getId() : null)
+                .centroNombre(usuario.getCentro() != null ? usuario.getCentro().getNombre() : null)
 
-                .centerId(user.getCenter() != null ? user.getCenter().getId() : null)
-                .centerName(user.getCenter() != null ? user.getCenter().getName() : null)
+                .cursoId(usuario.getCurso() != null ? usuario.getCurso().getId() : null)
+                .cursoNombre(usuario.getCurso() != null ? usuario.getCurso().getNombre() : null)
 
-                .instrumentId(user.getInstrument() != null ? user.getInstrument().getId() : null)
-                .instrumentName(user.getInstrument() != null ? user.getInstrument().getName() : null)
+                .instrumentoId(usuario.getInstrumento() != null ? usuario.getInstrumento().getId() : null)
+                .instrumentoNombre(usuario.getInstrumento() != null ? usuario.getInstrumento().getNombre() : null)
 
-                .courseId(user.getCourse() != null ? user.getCourse().getId() : null)
-                .courseName(user.getCourse() != null ? user.getCourse().getName() : null)
                 .build();
     }
 
-    // ================= CHANGE PASSWORD =================
-    public void changePassword(User user, ChangePasswordRequestDTO dto) {
+    // ============================================================
+    // CHANGE PASSWORD
+    // ============================================================
 
-        if (!passwordEncoder.matches(dto.getCurrentPassword(), user.getPassword())) {
-            throw new RuntimeException("INVALID_CURRENT_PASSWORD");
+    public void changePassword(Usuario usuario, ChangePasswordRequestDTO dto) {
+
+        if (!passwordEncoder.matches(dto.getCurrentPassword(), usuario.getPassword())) {
+            throw new ApiException("INVALID_CURRENT_PASSWORD", HttpStatus.UNAUTHORIZED);
         }
 
-        user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
-        userRepository.save(user);
+        usuario.setPassword(passwordEncoder.encode(dto.getNewPassword()));
+        usuarioRepository.save(usuario);
     }
 }

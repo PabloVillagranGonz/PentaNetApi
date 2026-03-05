@@ -2,202 +2,252 @@ package org.example.centrosnetapi.services;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.example.centrosnetapi.dtos.SendGroupCorreoRequestDTO;
+import org.example.centrosnetapi.dtos.Correo.CorreoResponseDTO;
+import org.example.centrosnetapi.dtos.Correo.SendCorreoRequestDTO;
+import org.example.centrosnetapi.dtos.Correo.SendGroupCorreoRequestDTO;
+import org.example.centrosnetapi.exceptions.ApiException;
 import org.example.centrosnetapi.models.*;
 import org.example.centrosnetapi.repositories.*;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class CorreoService {
 
-    private final CorreoRepository correoRepository;
-    private final UsuarioCorreoRepository usuarioCorreoRepository;
-    private final UserRepository userRepository;
-    private final CourseSubjectRepository courseSubjectRepository;
-    private final SubjectRepository subjectRepository;
-    private final MessageGroupRepository messageGroupRepository;
+    private final MensajeRepository mensajesRepository;
+    private final UsuarioMensajeRepository usuarioMensajeRepository;
+    private final UsuarioRepository usuarioRepository;
+    private final AsignaturaRepository asignaturaRepository;
+    private final CursoRepository cursoRepository;
+    private final GrupoMensajesRepository grupoMensajesRepository;
 
-    // =====================================================
-    // 🔎 RESOLVER USUARIO POR EMAIL (MÉTODO CENTRAL)
-    // =====================================================
-
-    private User getUserByEmail(String email) {
-        return userRepository.findByEmailIgnoreCase(email)
-                .orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
-    }
-
-    // =====================================================
+    // ============================================================
     // 📥 INBOX
-    // =====================================================
+    // ============================================================
 
-    public List<Map<String, Object>> getInboxByEmail(String email) {
-        User user = getUserByEmail(email);
-        return usuarioCorreoRepository.findInbox(user.getId());
+    public List<CorreoResponseDTO> getInbox(Usuario usuario) {
+
+        return usuarioMensajeRepository
+                .findInboxByUsuarioId(usuario.getId())
+                .stream()
+                .map(this::toDTO)
+                .toList();
     }
 
-    // =====================================================
+    // ============================================================
     // 📤 ENVIADOS
-    // =====================================================
+    // ============================================================
 
-    public List<Map<String, Object>> getSentByEmail(String email) {
-        User user = getUserByEmail(email);
-        return usuarioCorreoRepository.findSent(user.getId());
+    public List<CorreoResponseDTO> getSent(Usuario usuario) {
+
+        return mensajesRepository
+                .findByRemitenteId(usuario.getId())
+                .stream()
+                .map(this::toDTOFromMensaje)
+                .toList();
     }
 
-    // =====================================================
+    // ============================================================
     // ✅ MARCAR COMO LEÍDO
-    // =====================================================
+    // ============================================================
 
-    @Transactional
-    public void markAsRead(Long correoId, String email) {
-        User user = getUserByEmail(email);
-        usuarioCorreoRepository.markAsRead(correoId, user.getId());
+    public void markAsRead(Long mensajeId, Usuario usuario) {
+
+        UsuarioMensaje estado = usuarioMensajeRepository
+                .findByMensajeIdAndUsuarioId(mensajeId, usuario.getId())
+                .orElseThrow(() ->
+                        new ApiException("MENSAJE_NOT_FOUND", HttpStatus.NOT_FOUND)
+                );
+
+        estado.setLeido(true);
     }
 
-    // =====================================================
-    // 🗑️ BORRAR
-    // =====================================================
+    // ============================================================
+    // 🗑️ BORRAR PARA USUARIO
+    // ============================================================
 
-    @Transactional
-    public void deleteForUser(Long correoId, String email) {
-        User user = getUserByEmail(email);
-        usuarioCorreoRepository.markAsDeleted(correoId, user.getId());
+    public void deleteForUser(Long mensajeId, Usuario usuario) {
+
+        UsuarioMensaje estado = usuarioMensajeRepository
+                .findByMensajeIdAndUsuarioId(mensajeId, usuario.getId())
+                .orElseThrow(() ->
+                        new ApiException("MENSAJE_NOT_FOUND", HttpStatus.NOT_FOUND)
+                );
+
+        estado.setEliminado(true);
     }
 
-    // =====================================================
-    // 🔢 CONTADOR
-    // =====================================================
-
-    public Map<String, Integer> getEmailCount(String email) {
-
-        User user = getUserByEmail(email);
-
-        int enviados = correoRepository.countSent(user.getId());
-        int recibidos = correoRepository.countReceived(user.getId());
-
-        return Map.of(
-                "enviados", enviados,
-                "recibidos", recibidos
-        );
-    }
-
-    // =====================================================
+    // ============================================================
     // ✉️ ENVÍO INDIVIDUAL
-    // =====================================================
+    // ============================================================
 
-    @Transactional
-    public void sendCorreo(
-            String senderEmail,
-            Long destinatarioId,
-            String asunto,
-            String cuerpo
-    ) {
+    public void sendCorreo(Usuario emisor, SendCorreoRequestDTO dto) {
 
-        User emisor = getUserByEmail(senderEmail);
+        Usuario destinatario = usuarioRepository.findById(dto.getDestinatarioId())
+                .orElseThrow(() ->
+                        new ApiException("DESTINATARIO_NOT_FOUND", HttpStatus.NOT_FOUND)
+                );
 
-        User destinatario = userRepository.findById(destinatarioId)
-                .orElseThrow(() -> new RuntimeException("DESTINATARIO_NOT_FOUND"));
+        Mensaje mensaje = Mensaje.builder()
+                .remitente(emisor)
+                .destinatario(destinatario)
+                .asunto(dto.getAsunto())
+                .cuerpo(dto.getCuerpo())
+                .fechaEnvio(LocalDateTime.now())
+                .build();
 
-        Correo correo = new Correo();
-        correo.setEmisor(emisor);
-        correo.setDestinatario(destinatario);
-        correo.setAsunto(asunto);
-        correo.setCuerpo(cuerpo);
+        mensajesRepository.save(mensaje);
 
-        correoRepository.save(correo);
-
-        // Registro destinatario
-        UsuarioCorreo ucDestinatario = new UsuarioCorreo();
-        ucDestinatario.setCorreo(correo);
-        ucDestinatario.setUsuario(destinatario);
-        ucDestinatario.setLeido(false);
-        ucDestinatario.setEliminado(false);
-        ucDestinatario.setArchivado(false);
-        usuarioCorreoRepository.save(ucDestinatario);
-
-        // Registro emisor
-        UsuarioCorreo ucEmisor = new UsuarioCorreo();
-        ucEmisor.setCorreo(correo);
-        ucEmisor.setUsuario(emisor);
-        ucEmisor.setLeido(true);
-        ucEmisor.setEliminado(false);
-        ucEmisor.setArchivado(false);
-        usuarioCorreoRepository.save(ucEmisor);
+        crearEstadoMensaje(mensaje, destinatario, false);
+        crearEstadoMensaje(mensaje, emisor, true);
     }
 
-    // =====================================================
-    // 👥 ENVÍO A GRUPO
-    // =====================================================
+    // ============================================================
+    // 👥 ENVÍO A GRUPO (POR ASIGNATURA)
+    // ============================================================
 
-    @Transactional
-    public void sendToGroup(SendGroupCorreoRequestDTO request, String senderEmail) {
+    public void sendToGroup(SendGroupCorreoRequestDTO dto,
+                            Usuario emisor) {
 
-        User sender = getUserByEmail(senderEmail);
+        Asignatura asignatura = asignaturaRepository
+                .findById(dto.getAsignaturaId())
+                .orElseThrow(() ->
+                        new ApiException("ASIGNATURA_NOT_FOUND", HttpStatus.NOT_FOUND)
+                );
 
-        Subject subject = subjectRepository.findById(request.getSubjectId())
-                .orElseThrow(() -> new RuntimeException("SUBJECT_NOT_FOUND"));
+        // Obtener curso asociado a la asignatura
+        Curso curso = cursoRepository
+                .findFirstByAsignaturasId(asignatura.getId())
+                .orElseThrow(() ->
+                        new ApiException("ASIGNATURA_SIN_CURSO", HttpStatus.BAD_REQUEST)
+                );
 
-        System.out.println("📌 SUBJECT ID RECIBIDO: " + request.getSubjectId());
+        GrupoMensajes grupo = GrupoMensajes.builder()
+                .asignatura(asignatura)
+                .creadoPor(emisor)
+                .build();
 
-        List<CourseSubject> courseSubjects =
-                courseSubjectRepository.findBySubjectId(subject.getId());
+        grupoMensajesRepository.save(grupo);
 
-        System.out.println("📌 COURSE SUBJECTS SIZE: " + courseSubjects.size());
+        Mensaje mensaje = Mensaje.builder()
+                .remitente(emisor)
+                .grupo(grupo)
+                .asunto(dto.getAsunto())
+                .cuerpo(dto.getCuerpo())
+                .build();
 
-        if (courseSubjects.isEmpty()) {
-            throw new RuntimeException("SUBJECT_SIN_CURSO");
-        }
+        mensajesRepository.save(mensaje);
 
-        Course course = courseSubjects.get(0).getCourse();
+        // Buscar alumnos del curso
+        List<Usuario> alumnos =
+                usuarioRepository.findByCurso_IdAndRol(
+                        curso.getId(),
+                        Rol.ALUMNO
+                );
 
-        System.out.println("📌 CURSO ID: " + course.getId());
+        for (Usuario alumno : alumnos) {
 
-        MessageGroup group = new MessageGroup();
-        group.setSubject(subject);
-        group.setCreatedBy(sender);
-        messageGroupRepository.save(group);
+            if (!alumno.getId().equals(emisor.getId())) {
 
-        Correo correo = new Correo();
-        correo.setEmisor(sender);
-        correo.setAsunto(request.getAsunto());
-        correo.setCuerpo(request.getCuerpo());
-        correo.setMessageGroup(group);
-        correoRepository.save(correo);
-
-        List<User> destinatarios =
-                userRepository.findByCourse_IdAndRole(course.getId(), Role.STUDENT);
-
-        System.out.println("📌 DESTINATARIOS SIZE: " + destinatarios.size());
-
-        destinatarios.forEach(u ->
-                System.out.println("👨‍🎓 ALUMNO: " + u.getId() + " - " + u.getEmail())
-        );
-
-        for (User user : destinatarios) {
-            if (!user.getId().equals(sender.getId())) {
-
-                UsuarioCorreo uc = new UsuarioCorreo();
-                uc.setCorreo(correo);
-                uc.setUsuario(user);
-                uc.setLeido(false);
-                uc.setEliminado(false);
-                uc.setArchivado(false);
-
-                usuarioCorreoRepository.save(uc);
+                crearEstadoMensaje(mensaje, alumno, false);
             }
         }
 
-        UsuarioCorreo ucSender = new UsuarioCorreo();
-        ucSender.setCorreo(correo);
-        ucSender.setUsuario(sender);
-        ucSender.setLeido(true);
-        ucSender.setEliminado(false);
-        ucSender.setArchivado(false);
+        crearEstadoMensaje(mensaje, emisor, true);
+    }
 
-        usuarioCorreoRepository.save(ucSender);
+    // ============================================================
+    // 🛠 MÉTODOS PRIVADOS
+    // ============================================================
+
+    private void crearEstadoMensaje(Mensaje mensaje,
+                                    Usuario usuario,
+                                    boolean leido) {
+
+        UsuarioMensaje estado = UsuarioMensaje.builder()
+                .mensaje(mensaje)
+                .usuario(usuario)
+                .leido(leido)
+                .eliminado(false)
+                .archivado(false)
+                .build();
+
+        usuarioMensajeRepository.save(estado);
+    }
+
+    private CorreoResponseDTO toDTO(UsuarioMensaje um) {
+
+        Mensaje m = um.getMensaje();
+
+        return CorreoResponseDTO.builder()
+                .id(m.getId())
+                .asunto(m.getAsunto())
+                .cuerpo(m.getCuerpo())
+
+                .emisorId(m.getRemitente().getId())
+                .emisorNombre(
+                        m.getRemitente().getNombre() + " " +
+                                m.getRemitente().getApellidos()
+                )
+
+                .destinatarioId(
+                        m.getDestinatario() != null
+                                ? m.getDestinatario().getId()
+                                : null
+                )
+
+                .destinatarioNombre(
+                        m.getDestinatario() != null
+                                ? m.getDestinatario().getNombre() + " " +
+                                m.getDestinatario().getApellidos()
+                                : "Grupo"
+                )
+
+                .leido(um.getLeido())
+                .archivado(um.getArchivado())
+                .fechaEnvio(m.getFechaEnvio())
+                .build();
+    }
+
+    private CorreoResponseDTO toDTOFromMensaje(Mensaje m) {
+
+        return CorreoResponseDTO.builder()
+                .id(m.getId())
+                .asunto(m.getAsunto())
+                .cuerpo(m.getCuerpo())
+
+                .emisorId(m.getRemitente().getId())
+                .emisorNombre(
+                        m.getRemitente().getNombre() + " " +
+                                m.getRemitente().getApellidos()
+                )
+
+                .destinatarioId(
+                        m.getDestinatario() != null
+                                ? m.getDestinatario().getId()
+                                : null
+                )
+
+                .destinatarioNombre(
+                        m.getDestinatario() != null
+                                ? m.getDestinatario().getNombre() + " " +
+                                m.getDestinatario().getApellidos()
+                                : "Grupo"
+                )
+
+                .fechaEnvio(m.getFechaEnvio())
+                .build();
+    }
+
+    public long countUnread(Usuario usuario) {
+
+        return usuarioMensajeRepository.countUnreadByUsuarioId(
+                usuario.getId()
+        );
     }
 }

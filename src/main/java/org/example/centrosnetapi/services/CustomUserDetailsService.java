@@ -1,7 +1,7 @@
 package org.example.centrosnetapi.services;
 
 import lombok.RequiredArgsConstructor;
-import org.example.centrosnetapi.repositories.UserRepository;
+import org.example.centrosnetapi.repositories.UsuarioRepository;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class CustomUserDetailsService implements UserDetailsService {
 
-    private final UserRepository userRepository;
+    private final UsuarioRepository userRepository;
 
     @Override
     public UserDetails loadUserByUsername(String email)

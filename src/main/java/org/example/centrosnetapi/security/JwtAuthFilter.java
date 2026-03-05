@@ -1,12 +1,13 @@
 package org.example.centrosnetapi.security;
 
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.example.centrosnetapi.models.User;
-import org.example.centrosnetapi.repositories.UserRepository;
+import org.example.centrosnetapi.models.Usuario;
+import org.example.centrosnetapi.repositories.UsuarioRepository;
 import org.example.centrosnetapi.services.JwtService;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,7 +22,7 @@ import java.io.IOException;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-    private final UserRepository userRepository;
+    private final UsuarioRepository usuarioRepository;
 
     @Override
     protected void doFilterInternal(
@@ -32,45 +33,46 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         final String authHeader = request.getHeader("Authorization");
 
-        System.out.println("➡️ REQUEST: " + request.getMethod() + " " + request.getRequestURI());
-        System.out.println("➡️ AUTH HEADER: " + authHeader);
-
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            System.out.println("❌ NO TOKEN");
             filterChain.doFilter(request, response);
             return;
         }
 
         final String token = authHeader.substring(7);
 
-        if (!jwtService.isTokenValid(token)) {
-            System.out.println("❌ TOKEN INVALIDO");
-            filterChain.doFilter(request, response);
-            return;
-        }
+        try {
 
-        String email = jwtService.extractEmail(token);
-        System.out.println("✅ TOKEN EMAIL: " + email);
+            final String email = jwtService.extractEmail(token);
 
-        User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
+            if (email != null &&
+                    SecurityContextHolder.getContext().getAuthentication() == null) {
 
-        if (user != null &&
-                SecurityContextHolder.getContext().getAuthentication() == null) {
+                Usuario usuario = usuarioRepository
+                        .findByEmailIgnoreCase(email)
+                        .orElse(null);
 
-            System.out.println("👤 USER ROLE: " + user.getRole());
+                if (usuario != null &&
+                        jwtService.isTokenValid(token, usuario)) {
 
-            user.getAuthorities().forEach(a ->
-                    System.out.println("🔐 AUTHORITY: " + a.getAuthority())
-            );
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(
+                                    usuario,
+                                    null,
+                                    usuario.getAuthorities()
+                            );
 
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(
-                            user,
-                            null,
-                            user.getAuthorities()
+                    authentication.setDetails(
+                            new WebAuthenticationDetailsSource()
+                                    .buildDetails(request)
                     );
 
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+                    SecurityContextHolder.getContext()
+                            .setAuthentication(authentication);
+                }
+            }
+
+        } catch (JwtException ignored) {
+            // Token inválido o expirado → no autenticamos
         }
 
         filterChain.doFilter(request, response);

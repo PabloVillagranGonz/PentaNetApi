@@ -1,13 +1,15 @@
 package org.example.centrosnetapi.controllers;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.example.centrosnetapi.dtos.UserResponseDTO;
-import org.example.centrosnetapi.services.UserService;
+import org.example.centrosnetapi.dtos.Usuario.UpdateUserDTO;
+import org.example.centrosnetapi.dtos.Usuario.UserResponseDTO;
+import org.example.centrosnetapi.services.UsuarioService;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/admin/users")
@@ -16,23 +18,31 @@ import java.util.Map;
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminUserController {
 
-    private final UserService userService;
+    private final UsuarioService userService;
+
+    // ================= GET ALL =================
 
     @GetMapping
-    public List<UserResponseDTO> getAllUsers() {
-        return userService.findAll();
+    public ResponseEntity<List<UserResponseDTO>> getAllUsers() {
+        return ResponseEntity.ok(userService.findAll());
     }
 
-    @DeleteMapping("/{id}")
-    public void deleteUser(@PathVariable Long id) {
-        userService.deleteById(id);
-    }
+    // ================= UPDATE =================
 
     @PutMapping("/{id}")
-    public void updateUser(
+    public ResponseEntity<Void> updateUser(
             @PathVariable Long id,
-            @RequestBody Map<String, Object> data
+            @Valid @RequestBody UpdateUserDTO dto
     ) {
-        userService.updatePartial(id, data);
+        userService.update(id, dto);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ================= DELETE =================
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
+        userService.deleteById(id);
+        return ResponseEntity.noContent().build();
     }
 }

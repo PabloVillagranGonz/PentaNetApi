@@ -1,0 +1,80 @@
+package org.example.centrosnetapi.controllers;
+
+import lombok.RequiredArgsConstructor;
+import org.example.centrosnetapi.dtos.Asignatura.SubjectRequestDTO;
+import org.example.centrosnetapi.dtos.Asignatura.SubjectResponseDTO;
+import org.example.centrosnetapi.models.Usuario;
+import org.example.centrosnetapi.services.AsignaturaService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/subjects")
+@RequiredArgsConstructor
+@CrossOrigin
+public class AsignaturaController {
+
+    private final AsignaturaService subjectService;
+
+    // ================= CREATE =================
+
+    @PostMapping
+    public ResponseEntity<SubjectResponseDTO> create(
+            @RequestBody SubjectRequestDTO dto
+    ) {
+        return ResponseEntity.ok(subjectService.create(dto));
+    }
+
+    // ================= UPDATE =================
+
+    @PutMapping("/{id}")
+    public ResponseEntity<SubjectResponseDTO> update(
+            @PathVariable Long id,
+            @RequestBody SubjectRequestDTO dto
+    ) {
+        return ResponseEntity.ok(subjectService.update(id, dto));
+    }
+
+    // ================= READ =================
+
+    @GetMapping
+    public ResponseEntity<List<SubjectResponseDTO>> getAll() {
+        return ResponseEntity.ok(subjectService.findAll());
+    }
+
+    @GetMapping("/center/{centerId}")
+    public ResponseEntity<List<SubjectResponseDTO>> getByCenter(
+            @PathVariable Long centerId
+    ) {
+        return ResponseEntity.ok(subjectService.findByCenter(centerId));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<SubjectResponseDTO> getById(
+            @PathVariable Long id
+    ) {
+        return ResponseEntity.ok(subjectService.findById(id));
+    }
+
+    // ================= DELETE =================
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        subjectService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ================= MINE =================
+
+    @GetMapping("/mine")
+    public ResponseEntity<List<SubjectResponseDTO>> getMySubjects(
+            @AuthenticationPrincipal Usuario usuario
+    ) {
+        return ResponseEntity.ok(
+                subjectService.getSubjectsForTeacher(usuario)
+        );
+    }
+}

@@ -1,46 +1,51 @@
 package org.example.centrosnetapi.security;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import jakarta.servlet.http.HttpServletResponse;
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
-@EnableWebSecurity
+@EnableMethodSecurity
 @RequiredArgsConstructor
-@EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+
+    // Si no existe en properties → usa localhost por defecto
+    @Value("${app.allowed-origins:http://localhost:5173}")
+    private String allowedOriginsProperty;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
         http
+                // API stateless (JWT)
                 .csrf(csrf -> csrf.disable())
-                .cors(Customizer.withDefaults())
+
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
 
-                // 🔐 Manejo claro de errores
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(authenticationEntryPoint())
                         .accessDeniedHandler(accessDeniedHandler())
@@ -48,13 +53,13 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
 
-                        // 🔥 CORS PREFLIGHT
+                        // Preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // 🔓 AUTH
+                        // Auth pública
                         .requestMatchers("/auth/**").permitAll()
 
-                        // 🔓 SWAGGER
+                        // Swagger
                         .requestMatchers(
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
@@ -62,26 +67,22 @@ public class SecurityConfig {
                                 "/doc/**"
                         ).permitAll()
 
-                        // =====================================================
-                        // 🎹 AULAS
-                        // =====================================================
-                        .requestMatchers(HttpMethod.GET, "/api/aulas/**")
-                        .hasAnyRole("ADMIN", "SECRETARIA", "STUDENT")
+                        // ESPACIOS
+                        .requestMatchers(HttpMethod.GET, "/api/espacios/**")
+                        .hasAnyRole("ADMIN", "SECRETARIA", "ALUMNO")
 
-                        .requestMatchers(HttpMethod.POST, "/api/aulas/**")
+                        .requestMatchers(HttpMethod.POST, "/api/espacios/**")
                         .hasAnyRole("ADMIN", "SECRETARIA")
 
-                        .requestMatchers(HttpMethod.PUT, "/api/aulas/**")
+                        .requestMatchers(HttpMethod.PUT, "/api/espacios/**")
                         .hasAnyRole("ADMIN", "SECRETARIA")
 
-                        .requestMatchers(HttpMethod.DELETE, "/api/aulas/**")
+                        .requestMatchers(HttpMethod.DELETE, "/api/espacios/**")
                         .hasRole("ADMIN")
 
-                        // =====================================================
-                        // 🕒 RESERVAS
-                        // =====================================================
+                        // RESERVAS
                         .requestMatchers(HttpMethod.GET, "/api/reservas/**")
-                        .hasAnyRole("ADMIN", "SECRETARIA", "STUDENT")
+                        .hasAnyRole("ADMIN", "SECRETARIA", "ALUMNO")
 
                         .requestMatchers(HttpMethod.POST, "/api/reservas/**")
                         .hasAnyRole("ADMIN", "SECRETARIA")
@@ -89,99 +90,75 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/api/reservas/**")
                         .hasRole("ADMIN")
 
-                        // =====================================================
-                        // 👤 USUARIOS - BÚSQUEDA POR EMAIL
-                        // =====================================================
-                        .requestMatchers(HttpMethod.GET, "/api/users/email")
-                        .hasAnyRole("ADMIN", "SECRETARIA", "TEACHER", "STUDENT")
-
-                        // =====================================================
-                        // 👤 USUARIOS - GESTIÓN
-                        // =====================================================
-                        .requestMatchers("/api/users/**")
-                        .hasAnyRole("ADMIN", "SECRETARIA")
-
-                        // =====================================================
-                        // 📧 CORREOS
-                        // =====================================================
+                        // CORREOS
                         .requestMatchers("/api/correos/**")
-                        .hasAnyRole("ADMIN", "STUDENT", "TEACHER", "SECRETARIA")
+                        .hasAnyRole("ADMIN", "ALUMNO", "PROFESOR", "SECRETARIA")
 
-                        // =====================================================
-                        // 📚 SUBJECTS
-                        // =====================================================
+                        // CENTERS - lectura
+                        .requestMatchers(HttpMethod.GET, "/api/centers/**")
+                        .hasAnyRole("ADMIN","SECRETARIA","ALUMNO","PROFESOR")
 
-                        // 👨‍🏫 PROFESOR → sus asignaturas
-                        .requestMatchers(HttpMethod.GET, "/api/subjects/mine")
-                        .hasRole("TEACHER")
-
-                        // 🔐 ADMIN → gestión completa
-                        .requestMatchers("/api/subjects/**")
-                        .hasRole("ADMIN")
-
-                        // =====================================================
-                        // 🔐 ADMIN GENERAL
-                        // =====================================================
+                        // ADMIN GLOBAL
                         .requestMatchers(
                                 "/admin/**",
-                                "/api/rooms/**",
                                 "/api/courses/**",
                                 "/api/course-subjects/**",
                                 "/api/centers/**",
                                 "/api/instruments/**"
                         ).hasRole("ADMIN")
 
-                        // 🔒 RESTO
+                        // Todo lo demás requiere login
                         .anyRequest().authenticated()
                 )
 
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthFilter,
+                        UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    // =====================================================
-    // 🔐 MANEJO DE ERRORES
-    // =====================================================
-
+    // ======================
+    // 401 - No autenticado
+    // ======================
     @Bean
     public AuthenticationEntryPoint authenticationEntryPoint() {
-        return (request, response, authException) -> {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "No autenticado");
-        };
+        return (request, response, ex) ->
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "No autenticado");
     }
 
+    // ======================
+    // 403 - Sin permisos
+    // ======================
     @Bean
     public AccessDeniedHandler accessDeniedHandler() {
-        return (request, response, accessDeniedException) -> {
-            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Sin permisos");
-        };
+        return (request, response, ex) ->
+                response.sendError(HttpServletResponse.SC_FORBIDDEN, "Sin permisos");
     }
 
-    // =====================================================
-    // 🔐 PASSWORD ENCODER
-    // =====================================================
-
+    // ======================
+    // Password Encoder
+    // ======================
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-    // =====================================================
-    // 🌍 CORS
-    // =====================================================
-
+    // ======================
+    // CORS
+    // ======================
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
 
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(List.of("*"));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedOriginPatterns(List.of("*")); // 👈 CLAVE
+        configuration.setAllowedMethods(List.of("*"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(false);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+
         source.registerCorsConfiguration("/**", configuration);
 
         return source;
