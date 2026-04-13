@@ -36,4 +36,6 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
             OR LOWER(u.email) LIKE LOWER(CONCAT('%', :query, '%'))
     """)
     List<Usuario> buscarPorTexto(@Param("query") String query);
+
+    List<Usuario> findByCentroId(Long centroId);
 }

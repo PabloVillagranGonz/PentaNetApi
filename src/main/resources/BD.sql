@@ -274,3 +274,18 @@ CREATE TABLE usuarios_mensajes (
                                        FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
                                            ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+-- 14. Asistencia
+CREATE TABLE asistencia (
+                            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                            sesion_id BIGINT NOT NULL,
+                            alumno_id BIGINT NOT NULL,
+                            fecha DATE NOT NULL,
+                            estado ENUM('PRESENTE','AUSENTE','RETRASO') NOT NULL,
+                            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+                            UNIQUE KEY unique_asistencia (sesion_id, alumno_id, fecha),
+
+                            FOREIGN KEY (sesion_id) REFERENCES sesiones_clase(id) ON DELETE CASCADE,
+                            FOREIGN KEY (alumno_id) REFERENCES usuarios(id) ON DELETE CASCADE
+);

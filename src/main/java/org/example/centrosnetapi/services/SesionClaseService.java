@@ -35,6 +35,48 @@ public class SesionClaseService {
                 .toList();
     }
 
+    public List<UserResponseDTO> getStudentsForSession(Long sessionId) {
+
+        SesionClase sesion = sesionRepository.findById(sessionId)
+                .orElseThrow(() -> new RuntimeException("SESSION_NOT_FOUND"));
+
+        // =========================
+        // 🎯 CLASE INDIVIDUAL
+        // =========================
+        if (sesion.getAlumno() != null) {
+
+            Usuario alumno = sesion.getAlumno();
+
+            return List.of(
+                    UserResponseDTO.builder()
+                            .id(alumno.getId())
+                            .nombre(alumno.getNombre())
+                            .apellidos(alumno.getApellidos())
+                            .email(alumno.getEmail())
+                            .rol(alumno.getRol())
+                            .centroId(
+                                    alumno.getCentro() != null ? alumno.getCentro().getId() : null
+                            )
+                            .cursoId(
+                                    alumno.getCurso() != null ? alumno.getCurso().getId() : null
+                            )
+                            .build()
+            );
+        }
+
+        // =========================
+        // 🎯 CLASE COLECTIVA
+        // =========================
+        return usuarioRepository
+                .findByCurso_IdAndRol(
+                        sesion.getCurso().getId(),
+                        Rol.ALUMNO
+                )
+                .stream()
+                .map(this::toUserDTO) // ya lo tienes abajo en tu service
+                .toList();
+    }
+
     public Long crearSesion(SesionClaseRequestDTO dto) {
 
         Curso curso = cursoRepository.findById(dto.getCursoId())
@@ -223,9 +265,9 @@ public class SesionClaseService {
     }
 
     // ==========================================
-// 📚 SESIONES POR CURSO (para horario)
-// ==========================================
-    public List<SesionClaseResponseDTO> findByCourseId(Long cursoId) {
+    // 📚 SESIONES POR CURSO (para horario)
+    // ==========================================
+        public List<SesionClaseResponseDTO> findByCourseId(Long cursoId) {
 
         return sesionRepository.findByCursoId(cursoId)
                 .stream()
@@ -254,26 +296,18 @@ public class SesionClaseService {
                 .toList();
     }
 
-    private SesionClaseResponseDTO toResponseDTO(SesionClase s) {
-
-        return SesionClaseResponseDTO.builder()
-                .id(s.getId())
-                .cursoNombre(s.getCurso().getNombre())
-                .asignaturaNombre(s.getAsignatura().getNombre())
-                .profesorNombreCompleto(
-                        s.getProfesor() != null
-                                ? s.getProfesor().getNombre() + " " + s.getProfesor().getApellidos()
-                                : null
+    public List<SesionClaseResponseDTO> obtenerPorProfesorYDia(
+            Long profesorId,
+            Integer diaSemana
+    ) {
+        return sesionRepository
+                .findByProfesorIdAndDiaSemanaOrderByHoraInicioAsc(
+                        profesorId,
+                        diaSemana
                 )
-                .espacioNombre(
-                        s.getEspacio() != null
-                                ? s.getEspacio().getNombre()
-                                : null
-                )
-                .diaSemana(s.getDiaSemana())
-                .horaInicio(s.getHoraInicio())
-                .horaFin(s.getHoraFin())
-                .build();
+                .stream()
+                .map(this::toDTO)
+                .toList();
     }
 
     private UserResponseDTO toUserDTO(Usuario u) {

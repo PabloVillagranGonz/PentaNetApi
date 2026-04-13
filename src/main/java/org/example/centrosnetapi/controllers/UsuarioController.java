@@ -113,4 +113,11 @@ public class UsuarioController {
 
         return userService.findStudentsForCourse(id);
     }
+
+    @GetMapping("/centro/{centroId}")
+    public List<UserResponseDTO> getUsersByCenter(
+            @PathVariable Long centroId
+    ) {
+        return userService.findUsersByCenter(centroId);
+    }
 }

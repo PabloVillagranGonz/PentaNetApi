@@ -13,10 +13,13 @@ public interface SesionClaseRepository extends JpaRepository<SesionClase, Long> 
 
     // ================= CONSULTAS BÁSICAS =================
 
+    List<SesionClase> findByProfesorIdAndDiaSemanaOrderByHoraInicioAsc(
+            Long profesorId,
+            Integer diaSemana
+    );
     List<SesionClase> findByCurso_IdOrderByDiaSemanaAscHoraInicioAsc(Long cursoId);
 
     List<SesionClase> findByProfesorIdOrderByDiaSemanaAscHoraInicioAsc(Long profesorId);
-
 
     @Query("""
     SELECT COUNT(s) > 0

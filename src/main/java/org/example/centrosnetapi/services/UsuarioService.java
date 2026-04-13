@@ -309,4 +309,16 @@ public class UsuarioService {
             );
         else usuario.setInstrumento(null);
     }
+
+    public List<UserResponseDTO> findUsersByCenter(Long centroId) {
+
+        if (!centroRepository.existsById(centroId)) {
+            throw new ApiException("CENTRO_NOT_FOUND", HttpStatus.NOT_FOUND);
+        }
+
+        return usuarioRepository.findByCentroId(centroId)
+                .stream()
+                .map(this::toDTO)
+                .toList();
+    }
 }
