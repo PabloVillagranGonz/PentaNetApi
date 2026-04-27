@@ -5,6 +5,8 @@ import org.example.centrosnetapi.dtos.Usuario.TeacherResponseDTO;
 import org.example.centrosnetapi.dtos.Usuario.UserResponseDTO;
 import org.example.centrosnetapi.models.Usuario;
 import org.example.centrosnetapi.services.ProfesorService;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,8 +23,9 @@ public class ProfesorController {
     // ALL TEACHERS
     // =============================
     @GetMapping
-    public List<TeacherResponseDTO> getAll() {
-        return teacherService.findAllTeachers()
+    @PreAuthorize("hasAnyRole('ADMIN', 'SECRETARIA')")
+    public List<TeacherResponseDTO> getAll(@AuthenticationPrincipal Usuario adminLogueado) {
+        return teacherService.findAllTeachers(adminLogueado)
                 .stream()
                 .map(this::toDTO)
                 .toList();
@@ -32,8 +35,12 @@ public class ProfesorController {
     // TEACHERS BY CENTER
     // =============================
     @GetMapping("/center/{centerId}")
-    public List<TeacherResponseDTO> getByCenter(@PathVariable Long centerId) {
-        return teacherService.findTeachersByCenter(centerId)
+    @PreAuthorize("hasAnyRole('ADMIN', 'SECRETARIA')")
+    public List<TeacherResponseDTO> getByCenter(
+            @PathVariable Long centerId,
+            @AuthenticationPrincipal Usuario adminLogueado
+    ) {
+        return teacherService.findTeachersByCenter(centerId, adminLogueado)
                 .stream()
                 .map(this::toDTO)
                 .toList();
@@ -43,12 +50,14 @@ public class ProfesorController {
     // ASSIGN TO CENTER
     // =============================
     @PutMapping("/{teacherId}/center/{centerId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public TeacherResponseDTO assignToCenter(
             @PathVariable Long teacherId,
-            @PathVariable Long centerId
+            @PathVariable Long centerId,
+            @AuthenticationPrincipal Usuario adminLogueado
     ) {
         return toDTO(
-                teacherService.assignToCenter(teacherId, centerId)
+                teacherService.assignToCenter(teacherId, centerId, adminLogueado)
         );
     }
 
@@ -56,16 +65,24 @@ public class ProfesorController {
     // REMOVE FROM CENTER
     // =============================
     @DeleteMapping("/{teacherId}/center")
-    public void removeFromCenter(@PathVariable Long teacherId) {
-        teacherService.removeFromCenter(teacherId);
+    @PreAuthorize("hasRole('ADMIN')")
+    public void removeFromCenter(
+            @PathVariable Long teacherId,
+            @AuthenticationPrincipal Usuario adminLogueado
+    ) {
+        teacherService.removeFromCenter(teacherId, adminLogueado);
     }
 
     // =============================
     // STUDENTS FOR TEACHER
     // =============================
     @GetMapping("/{id}/students")
-    public List<UserResponseDTO> getStudents(@PathVariable Long id) {
-        return teacherService.getStudentsForTeacher(id);
+    @PreAuthorize("isAuthenticated()")
+    public List<UserResponseDTO> getStudents(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Usuario usuarioLogueado
+    ) {
+        return teacherService.getStudentsForTeacher(id, usuarioLogueado);
     }
 
     private TeacherResponseDTO toDTO(Usuario u) {

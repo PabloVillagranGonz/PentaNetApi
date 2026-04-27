@@ -1,5 +1,6 @@
 package org.example.centrosnetapi.models;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -27,6 +28,7 @@ public class Espacio {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "centro_id", nullable = false)
+    @JsonIgnoreProperties("espacios")
     private Centro centro;
 
     // ================= DATOS =================

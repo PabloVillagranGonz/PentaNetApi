@@ -11,6 +11,10 @@ public interface ReservaRepository extends JpaRepository<Reserva, Long> {
     // Alumno con reserva activa
     List<Reserva> findAllByUsuario_IdAndFinRealIsNull(Long usuarioId);
 
+    List<Reserva> findByCentroIdAndFinRealIsNull(Long centroId);
+
+    List<Reserva> findByCentroIdOrderByInicioDesc(Long centroId);
+
     // Espacio con reserva activa
     List<Reserva> findAllByEspacio_IdAndFinRealIsNull(Long espacioId);
 

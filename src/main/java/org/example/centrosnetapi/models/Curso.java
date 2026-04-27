@@ -1,5 +1,6 @@
 package org.example.centrosnetapi.models;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -34,6 +35,7 @@ public class Curso {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "centro_id", nullable = false)
+    @JsonIgnoreProperties("cursos")
     private Centro centro;
 
     @Column(name = "creado_en", insertable = false, updatable = false)

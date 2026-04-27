@@ -1,7 +1,6 @@
 package org.example.centrosnetapi.security;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -29,37 +28,30 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
 
-    // Si no existe en properties → usa localhost por defecto
-    @Value("${app.allowed-origins:http://localhost:5173}")
-    private String allowedOriginsProperty;
-
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
         http
-                // API stateless (JWT)
                 .csrf(csrf -> csrf.disable())
-
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
-
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(authenticationEntryPoint())
                         .accessDeniedHandler(accessDeniedHandler())
                 )
-
                 .authorizeHttpRequests(auth -> auth
 
-                        // Preflight
+                        // 1. ACCESO PÚBLICO TOTAL
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
-                        // Auth pública
                         .requestMatchers("/auth/**").permitAll()
+                        .requestMatchers("/api/public/**").permitAll()
 
-                        // Swagger
+                        // 🔓 PERMITIMOS VER CENTROS SIN TOKEN (Público)
+                        // Esto soluciona el error 401 en la pantalla de info del centro
+                        .requestMatchers(HttpMethod.GET, "/api/centers/**").permitAll()
+
                         .requestMatchers(
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
@@ -67,100 +59,74 @@ public class SecurityConfig {
                                 "/doc/**"
                         ).permitAll()
 
-                        // ESPACIOS
-                        .requestMatchers(HttpMethod.GET, "/api/espacios/**")
-                        .hasAnyRole("ADMIN", "SECRETARIA", "ALUMNO")
+                        // 2. RUTAS PROTEGIDAS (Requieren Login)
+                        .requestMatchers("/api/espacios/**").authenticated()
+                        .requestMatchers("/api/reservas/**").authenticated()
+                        .requestMatchers("/api/correos/**").authenticated()
 
-                        .requestMatchers(HttpMethod.POST, "/api/espacios/**")
-                        .hasAnyRole("ADMIN", "SECRETARIA")
+                        // Protegemos la gestión de centros (crear/borrar), pero permitimos el GET arriba
+                        .requestMatchers(HttpMethod.POST, "/api/centers/**").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/centers/**").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/centers/**").authenticated()
 
-                        .requestMatchers(HttpMethod.PUT, "/api/espacios/**")
-                        .hasAnyRole("ADMIN", "SECRETARIA")
+                        .requestMatchers("/api/cursos/**").authenticated()
+                        .requestMatchers("/api/subjects/**").authenticated()
+                        .requestMatchers("/api/teachers/**").authenticated()
+                        .requestMatchers("/api/students/**").authenticated()
+                        .requestMatchers("/api/asignaturas-curso/**").authenticated()
+                        .requestMatchers("/api/sesiones/**").authenticated()
 
-                        .requestMatchers(HttpMethod.DELETE, "/api/espacios/**")
-                        .hasRole("ADMIN")
-
-                        // RESERVAS
-                        .requestMatchers(HttpMethod.GET, "/api/reservas/**")
-                        .hasAnyRole("ADMIN", "SECRETARIA", "ALUMNO")
-
-                        .requestMatchers(HttpMethod.POST, "/api/reservas/**")
-                        .hasAnyRole("ADMIN", "SECRETARIA")
-
-                        .requestMatchers(HttpMethod.DELETE, "/api/reservas/**")
-                        .hasRole("ADMIN")
-
-                        // CORREOS
-                        .requestMatchers("/api/correos/**")
-                        .hasAnyRole("ADMIN", "ALUMNO", "PROFESOR", "SECRETARIA")
-
-                        // CENTERS - lectura
-                        .requestMatchers(HttpMethod.GET, "/api/centers/**")
-                        .hasAnyRole("ADMIN","SECRETARIA","ALUMNO","PROFESOR")
-
-                        // ADMIN GLOBAL
-                        .requestMatchers(
-                                "/admin/**",
-                                "/api/courses/**",
-                                "/api/course-subjects/**",
-                                "/api/centers/**",
-                                "/api/instruments/**"
-                        ).hasRole("ADMIN")
-
-                        // Todo lo demás requiere login
+                        // 3. CUALQUIER OTRA PETICIÓN
                         .anyRequest().authenticated()
                 )
-
-                .addFilterBefore(jwtAuthFilter,
-                        UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    // ======================
-    // 401 - No autenticado
-    // ======================
+    // ==========================================
+    // 🛡️ MANEJO DE ERRORES
+    // ==========================================
+
     @Bean
     public AuthenticationEntryPoint authenticationEntryPoint() {
-        return (request, response, ex) ->
-                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "No autenticado");
+        return (request, response, ex) -> {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\": \"No autenticado\", \"message\": \"" + ex.getMessage() + "\"}");
+        };
     }
 
-    // ======================
-    // 403 - Sin permisos
-    // ======================
     @Bean
     public AccessDeniedHandler accessDeniedHandler() {
-        return (request, response, ex) ->
-                response.sendError(HttpServletResponse.SC_FORBIDDEN, "Sin permisos");
+        return (request, response, ex) -> {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\": \"Sin permisos\", \"message\": \"No tienes autorización para acceder a este recurso\"}");
+        };
     }
 
-    // ======================
-    // Password Encoder
-    // ======================
+    // ==========================================
+    // ⚙️ COMPONENTES ADICIONALES
+    // ==========================================
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-    // ======================
-    // CORS
-    // ======================
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOriginPatterns(List.of("*")); // 👈 CLAVE
-        configuration.setAllowedMethods(List.of("*"));
-        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "Accept"));
+        configuration.setExposedHeaders(List.of("Authorization"));
         configuration.setAllowCredentials(false);
 
-        UrlBasedCorsConfigurationSource source =
-                new UrlBasedCorsConfigurationSource();
-
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
-
         return source;
     }
 }

@@ -1,5 +1,6 @@
 package org.example.centrosnetapi.models;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
@@ -28,8 +29,9 @@ public class Usuario implements UserDetails {
 
     // ================= RELACIONES =================
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "centro_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "centro_id")
+    @JsonIgnoreProperties("usuarios")
     private Centro centro;
 
     @ManyToOne(fetch = FetchType.LAZY)

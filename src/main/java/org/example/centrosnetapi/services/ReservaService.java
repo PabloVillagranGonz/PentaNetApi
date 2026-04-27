@@ -2,6 +2,7 @@ package org.example.centrosnetapi.services;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.example.centrosnetapi.dtos.Reserva.CrearReservaDTO;
 import org.example.centrosnetapi.dtos.Reserva.ReservaResponseDTO;
 import org.example.centrosnetapi.exceptions.ApiException;
 import org.example.centrosnetapi.models.Espacio;
@@ -12,8 +13,6 @@ import org.example.centrosnetapi.repositories.ReservaRepository;
 import org.example.centrosnetapi.repositories.UsuarioRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -21,6 +20,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Transactional // 🔥 Todo el servicio es transaccional para evitar inconsistencias
 public class ReservaService {
 
     private final ReservaRepository reservaRepository;
@@ -30,130 +30,106 @@ public class ReservaService {
     // ==========================================
     // 🚀 CREAR RESERVA
     // ==========================================
-    @Transactional
-    public ReservaResponseDTO crearReserva(Long usuarioId,
-                                           Long espacioId,
-                                           int duracionMin) {
+    public ReservaResponseDTO crearReserva(CrearReservaDTO dto, Usuario secretarioLogueado) {
 
-        if (duracionMin < 30 || duracionMin > 60) {
-            throw new ApiException(
-                    "DURACION_INVALIDA",
-                    HttpStatus.BAD_REQUEST
-            );
+        if (dto.getDuracion() < 30 || dto.getDuracion() > 60) {
+            throw new ApiException("DURACION_INVALIDA", HttpStatus.BAD_REQUEST);
         }
 
-        // 🔐 Obtener usuario autenticado desde JWT
-        Authentication auth = SecurityContextHolder
-                .getContext()
-                .getAuthentication();
+        Usuario usuario = usuarioRepository.findById(dto.getUsuarioId())
+                .orElseThrow(() -> new ApiException("USUARIO_NOT_FOUND", HttpStatus.NOT_FOUND));
 
-        String email = auth.getName();
+        Espacio espacio = espacioRepository.findById(dto.getAulaId())
+                .orElseThrow(() -> new ApiException("ESPACIO_NOT_FOUND", HttpStatus.NOT_FOUND));
 
-        Usuario secretaria = usuarioRepository
-                .findByEmailIgnoreCase(email)
-                .orElseThrow(() ->
-                        new ApiException("USUARIO_NOT_FOUND", HttpStatus.NOT_FOUND)
-                );
-
-        Usuario usuario = usuarioRepository.findById(usuarioId)
-                .orElseThrow(() ->
-                        new ApiException("USUARIO_NOT_FOUND", HttpStatus.NOT_FOUND)
-                );
-
-        Espacio espacio = espacioRepository.findById(espacioId)
-                .orElseThrow(() ->
-                        new ApiException("ESPACIO_NOT_FOUND", HttpStatus.NOT_FOUND)
-                );
-
-        // 🔒 Validar que la secretaria solo actúe en su centro
-        if (!secretaria.getCentro().getId()
-                .equals(espacio.getCentro().getId())) {
-
-            throw new ApiException(
-                    "FORBIDDEN_OTHER_CENTER",
-                    HttpStatus.FORBIDDEN
-            );
+        // 🔒 CANDADO SAAS: Validar que la reserva se haga en el centro de la secretaria
+        if (secretarioLogueado.getCentro() != null &&
+                !secretarioLogueado.getCentro().getId().equals(espacio.getCentro().getId())) {
+            throw new ApiException("FORBIDDEN_OTHER_CENTER", HttpStatus.FORBIDDEN);
         }
 
         LocalDateTime ahora = LocalDateTime.now();
 
-        validarReservasAlumno(usuarioId, ahora);
-        validarReservasEspacio(espacioId, ahora);
+        validarReservasAlumno(dto.getUsuarioId(), ahora);
+        validarReservasEspacio(dto.getAulaId(), ahora);
 
         Reserva reserva = Reserva.builder()
                 .usuario(usuario)
                 .espacio(espacio)
-                .centro(secretaria.getCentro())
+                .centro(espacio.getCentro()) // El centro de la reserva es el del espacio
                 .inicio(ahora)
-                .fin(ahora.plusMinutes(duracionMin))
+                .fin(ahora.plusMinutes(dto.getDuracion()))
+                .finalizadaAntes(false)
                 .build();
 
         reservaRepository.save(reserva);
-
         return toDTO(reserva);
     }
 
     // ==========================================
-    // VALIDACIONES
+    // 📊 RESERVAS ACTIVAS (FILTRADAS POR CENTRO)
     // ==========================================
-    private void validarReservasAlumno(Long usuarioId,
-                                       LocalDateTime ahora) {
+    public List<ReservaResponseDTO> obtenerReservasActivas(Usuario secretarioLogueado) {
 
-        List<Reserva> reservas =
-                reservaRepository
-                        .findAllByUsuario_IdAndFinRealIsNull(usuarioId);
+        // Si no es SuperAdmin, filtramos por su centroId
+        if (secretarioLogueado.getCentro() != null) {
+            return reservaRepository.findByCentroIdAndFinRealIsNull(secretarioLogueado.getCentro().getId())
+                    .stream().map(this::toDTO).toList();
+        }
+
+        // SuperAdmin ve todas
+        return reservaRepository.findByFinRealIsNull().stream().map(this::toDTO).toList();
+    }
+
+    // ==========================================
+    // 📜 HISTORIAL (FILTRADO POR CENTRO)
+    // ==========================================
+    public List<ReservaResponseDTO> obtenerHistorial(Usuario secretarioLogueado) {
+
+        if (secretarioLogueado.getCentro() != null) {
+            return reservaRepository.findByCentroIdOrderByInicioDesc(secretarioLogueado.getCentro().getId())
+                    .stream().map(this::toDTO).toList();
+        }
+
+        return reservaRepository.findAllByOrderByInicioDesc().stream().map(this::toDTO).toList();
+    }
+
+    // ==========================================
+    // 🏁 FINALIZAR MANUALMENTE
+    // ==========================================
+    public void finalizarReservaPorEspacio(Long espacioId, Usuario secretarioLogueado) {
+
+        Espacio espacio = espacioRepository.findById(espacioId)
+                .orElseThrow(() -> new ApiException("ESPACIO_NOT_FOUND", HttpStatus.NOT_FOUND));
+
+        // 🔒 CANDADO SAAS
+        if (secretarioLogueado.getCentro() != null &&
+                !secretarioLogueado.getCentro().getId().equals(espacio.getCentro().getId())) {
+            throw new ApiException("ACCESO_DENEGADO", HttpStatus.FORBIDDEN);
+        }
+
+        List<Reserva> reservas = reservaRepository.findAllByEspacio_IdAndFinRealIsNull(espacioId);
+        if (reservas.isEmpty()) return;
+
+        LocalDateTime ahora = LocalDateTime.now();
 
         for (Reserva r : reservas) {
-
             if (r.getFin().isAfter(ahora)) {
-                throw new ApiException(
-                        "ALUMNO_YA_TIENE_RESERVA_ACTIVA",
-                        HttpStatus.CONFLICT
-                );
+                r.setFinReal(ahora);
+                if (ahora.isBefore(r.getFin())) {
+                    r.setFinalizadaAntes(true);
+                }
+                break;
             }
-
-            r.setFinReal(ahora);
-        }
-    }
-    private void validarReservasEspacio(Long espacioId,
-                                        LocalDateTime ahora) {
-
-        List<Reserva> reservas =
-                reservaRepository.findAllByEspacio_IdAndFinRealIsNull(espacioId);
-
-        for (Reserva r : reservas) {
-
-            if (r.getFin().isAfter(ahora)) {
-                throw new ApiException(
-                        "ESPACIO_OCUPADO",
-                        HttpStatus.CONFLICT
-                );
-            }
-
-            r.setFinReal(ahora);
         }
     }
 
     // ==========================================
-    // 📊 RESERVAS ACTIVAS
+    // ⏲ CIERRE AUTOMÁTICO (System Process)
     // ==========================================
-
-    public List<ReservaResponseDTO> obtenerReservasActivas() {
-
-        return reservaRepository.findByFinRealIsNull()
-                .stream()
-                .map(this::toDTO)
-                .toList();
-    }
-
-    // ==========================================
-    // ⏲ CIERRE AUTOMÁTICO
-    // ==========================================
-
     @Scheduled(fixedRate = 10000)
-    @Transactional
     public void cerrarReservasVencidas() {
-
+        // Esto es un proceso de sistema, limpia toda la base de datos sin importar el centro
         List<Reserva> activas = reservaRepository.findByFinRealIsNull();
         LocalDateTime ahora = LocalDateTime.now();
 
@@ -165,57 +141,33 @@ public class ReservaService {
     }
 
     // ==========================================
-    // 📜 HISTORIAL
+    // HELPERS & VALIDATIONS
     // ==========================================
-
-    public List<ReservaResponseDTO> obtenerHistorial() {
-
-        return reservaRepository.findAllByOrderByInicioDesc()
-                .stream()
-                .map(this::toDTO)
-                .toList();
-    }
-
-    @Transactional
-    public void finalizarReservaPorEspacio(Long espacioId) {
-
-        List<Reserva> reservas =
-                reservaRepository.findAllByEspacio_IdAndFinRealIsNull(espacioId);
-
-        if (reservas.isEmpty()) {
-            return;
-        }
-
-        LocalDateTime ahora = LocalDateTime.now();
-
+    private void validarReservasAlumno(Long usuarioId, LocalDateTime ahora) {
+        List<Reserva> reservas = reservaRepository.findAllByUsuario_IdAndFinRealIsNull(usuarioId);
         for (Reserva r : reservas) {
-
             if (r.getFin().isAfter(ahora)) {
-
-                r.setFinReal(ahora);
-
-                if (ahora.isBefore(r.getFin())) {
-                    r.setFinalizadaAntes(true);
-                }
-
-                break;
+                throw new ApiException("ALUMNO_YA_TIENE_RESERVA_ACTIVA", HttpStatus.CONFLICT);
             }
+            r.setFinReal(ahora);
         }
     }
 
-    // ==========================================
-    // MAPPER CORREGIDO
-    // ==========================================
+    private void validarReservasEspacio(Long espacioId, LocalDateTime ahora) {
+        List<Reserva> reservas = reservaRepository.findAllByEspacio_IdAndFinRealIsNull(espacioId);
+        for (Reserva r : reservas) {
+            if (r.getFin().isAfter(ahora)) {
+                throw new ApiException("ESPACIO_OCUPADO", HttpStatus.CONFLICT);
+            }
+            r.setFinReal(ahora);
+        }
+    }
 
     private ReservaResponseDTO toDTO(Reserva r) {
-
         return ReservaResponseDTO.builder()
                 .id(r.getId())
                 .usuarioId(r.getUsuario().getId())
-                .usuarioNombre(
-                        r.getUsuario().getNombre() + " " +
-                                r.getUsuario().getApellidos()
-                )
+                .usuarioNombre(r.getUsuario().getNombre() + " " + r.getUsuario().getApellidos())
                 .aulaId(r.getEspacio().getId())
                 .aulaNombre(r.getEspacio().getNombre())
                 .inicio(r.getInicio())

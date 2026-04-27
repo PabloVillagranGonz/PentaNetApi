@@ -1,9 +1,11 @@
 package org.example.centrosnetapi.controllers;
 
 import lombok.RequiredArgsConstructor;
+import org.example.centrosnetapi.models.Usuario;
 import org.example.centrosnetapi.services.AsignaturaCursoService;
 import org.example.centrosnetapi.dtos.AsignaturaCurso.AsignaturaCursoRequestDTO;
 import org.example.centrosnetapi.dtos.AsignaturaCurso.AsignaturaCursoResponseDTO;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,20 +20,25 @@ public class AsignaturaCursoController {
 
     @PostMapping
     public AsignaturaCursoResponseDTO asignar(
-            @RequestBody AsignaturaCursoRequestDTO dto
+            @RequestBody AsignaturaCursoRequestDTO dto,
+            @AuthenticationPrincipal Usuario adminLogueado
     ) {
-        return asignaturaCursoService.asignar(dto);
+        return asignaturaCursoService.asignar(dto, adminLogueado);
     }
 
     @GetMapping("/curso/{cursoId}")
     public List<AsignaturaCursoResponseDTO> obtenerPorCurso(
-            @PathVariable Long cursoId
+            @PathVariable Long cursoId,
+            @AuthenticationPrincipal Usuario usuarioLogueado
     ) {
-        return asignaturaCursoService.obtenerPorCurso(cursoId);
+        return asignaturaCursoService.obtenerPorCurso(cursoId, usuarioLogueado);
     }
 
     @DeleteMapping("/{id}")
-    public void eliminar(@PathVariable Long id) {
-        asignaturaCursoService.eliminar(id);
+    public void eliminar(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Usuario adminLogueado
+    ) {
+        asignaturaCursoService.eliminar(id, adminLogueado);
     }
 }

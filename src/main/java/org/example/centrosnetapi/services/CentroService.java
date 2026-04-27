@@ -5,14 +5,17 @@ import org.example.centrosnetapi.dtos.Centro.CenterRequestDTO;
 import org.example.centrosnetapi.dtos.Centro.CenterResponseDTO;
 import org.example.centrosnetapi.exceptions.ApiException;
 import org.example.centrosnetapi.models.Centro;
+import org.example.centrosnetapi.models.Usuario;
 import org.example.centrosnetapi.repositories.CentroRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class CentroService {
 
     private final CentroRepository centroRepository;
@@ -20,11 +23,14 @@ public class CentroService {
     // ============================================================
     // CREATE
     // ============================================================
+    public CenterResponseDTO create(CenterRequestDTO dto, Usuario adminLogueado) {
 
-    public CenterResponseDTO create(CenterRequestDTO dto) {
+        // 🔥 CANDADO SAAS: Solo el Super Admin (centro = null) puede crear un conservatorio nuevo
+        if (adminLogueado.getCentro() != null) {
+            throw new ApiException("SOLO_SUPERADMIN_PUEDE_CREAR_CENTROS", HttpStatus.FORBIDDEN);
+        }
 
-        if (dto.getEmail() != null &&
-                centroRepository.existsByEmail(dto.getEmail())) {
+        if (dto.getEmail() != null && centroRepository.existsByEmail(dto.getEmail())) {
             throw new ApiException("EMAIL_ALREADY_EXISTS", HttpStatus.BAD_REQUEST);
         }
 
@@ -45,8 +51,14 @@ public class CentroService {
     // ============================================================
     // READ ALL
     // ============================================================
+    public List<CenterResponseDTO> findAll(Usuario adminLogueado) {
 
-    public List<CenterResponseDTO> findAll() {
+        // 🔥 CANDADO SAAS: Si un admin local intenta listar los centros, le devolvemos solo el suyo
+        if (adminLogueado.getCentro() != null) {
+            return List.of(toDTO(adminLogueado.getCentro()));
+        }
+
+        // Si es Super Admin, ve toda la lista
         return centroRepository.findAll()
                 .stream()
                 .map(this::toDTO)
@@ -56,13 +68,15 @@ public class CentroService {
     // ============================================================
     // READ BY ID
     // ============================================================
+    public CenterResponseDTO findById(Long id, Usuario adminLogueado) {
 
-    public CenterResponseDTO findById(Long id) {
+        // 🔥 CANDADO SAAS: No puede cotillear la info privada de otro centro
+        if (adminLogueado.getCentro() != null && !adminLogueado.getCentro().getId().equals(id)) {
+            throw new ApiException("ACCESO_DENEGADO", HttpStatus.FORBIDDEN);
+        }
 
         Centro centro = centroRepository.findById(id)
-                .orElseThrow(() ->
-                        new ApiException("CENTRO_NOT_FOUND", HttpStatus.NOT_FOUND)
-                );
+                .orElseThrow(() -> new ApiException("CENTRO_NOT_FOUND", HttpStatus.NOT_FOUND));
 
         return toDTO(centro);
     }
@@ -70,16 +84,17 @@ public class CentroService {
     // ============================================================
     // UPDATE
     // ============================================================
+    public CenterResponseDTO update(Long id, CenterRequestDTO dto, Usuario adminLogueado) {
 
-    public CenterResponseDTO update(Long id, CenterRequestDTO dto) {
+        // 🔥 CANDADO SAAS: Solo puede editar la info de SU centro
+        if (adminLogueado.getCentro() != null && !adminLogueado.getCentro().getId().equals(id)) {
+            throw new ApiException("NO_PUEDES_EDITAR_OTRO_CENTRO", HttpStatus.FORBIDDEN);
+        }
 
         Centro centro = centroRepository.findById(id)
-                .orElseThrow(() ->
-                        new ApiException("CENTRO_NOT_FOUND", HttpStatus.NOT_FOUND)
-                );
+                .orElseThrow(() -> new ApiException("CENTRO_NOT_FOUND", HttpStatus.NOT_FOUND));
 
-        if (dto.getEmail() != null &&
-                centroRepository.existsByEmailAndIdNot(dto.getEmail(), id)) {
+        if (dto.getEmail() != null && centroRepository.existsByEmailAndIdNot(dto.getEmail(), id)) {
             throw new ApiException("EMAIL_ALREADY_EXISTS", HttpStatus.BAD_REQUEST);
         }
 
@@ -98,8 +113,12 @@ public class CentroService {
     // ============================================================
     // DELETE
     // ============================================================
+    public void delete(Long id, Usuario adminLogueado) {
 
-    public void delete(Long id) {
+        // 🔥 CANDADO SAAS: Un admin no puede borrar un conservatorio entero. Solo Super Admin.
+        if (adminLogueado.getCentro() != null) {
+            throw new ApiException("SOLO_SUPERADMIN_PUEDE_BORRAR_CENTROS", HttpStatus.FORBIDDEN);
+        }
 
         if (!centroRepository.existsById(id)) {
             throw new ApiException("CENTRO_NOT_FOUND", HttpStatus.NOT_FOUND);
@@ -111,7 +130,6 @@ public class CentroService {
     // ============================================================
     // MAPPER
     // ============================================================
-
     private CenterResponseDTO toDTO(Centro c) {
         return CenterResponseDTO.builder()
                 .id(c.getId())

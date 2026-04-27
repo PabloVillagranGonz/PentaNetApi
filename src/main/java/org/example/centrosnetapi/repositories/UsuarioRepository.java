@@ -38,4 +38,6 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     List<Usuario> buscarPorTexto(@Param("query") String query);
 
     List<Usuario> findByCentroId(Long centroId);
+
+    Optional<Usuario> findByEmailIgnoreCaseAndCentroId(String email, Long centroId);
 }

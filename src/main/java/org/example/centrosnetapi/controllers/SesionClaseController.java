@@ -5,8 +5,10 @@ import lombok.RequiredArgsConstructor;
 import org.example.centrosnetapi.dtos.SesionClase.SesionClaseRequestDTO;
 import org.example.centrosnetapi.dtos.SesionClase.SesionClaseResponseDTO;
 import org.example.centrosnetapi.dtos.Usuario.UserResponseDTO;
+import org.example.centrosnetapi.models.Usuario;
 import org.example.centrosnetapi.services.SesionClaseService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
@@ -15,14 +17,18 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/sesiones")
 @RequiredArgsConstructor
+@CrossOrigin // 🔥 Añadido para que Flutter no se queje
 public class SesionClaseController {
 
     private final SesionClaseService sesionClaseService;
 
     @PostMapping
-    public ResponseEntity<Void> crear(@Valid @RequestBody SesionClaseRequestDTO dto) {
-
-        Long id = sesionClaseService.crearSesion(dto);
+    public ResponseEntity<Void> crear(
+            @Valid @RequestBody SesionClaseRequestDTO dto,
+            @AuthenticationPrincipal Usuario adminLogueado // 🔥 Inyectamos el candado
+    ) {
+        // Le pasamos el adminLogueado al servicio
+        Long id = sesionClaseService.crearSesion(dto, adminLogueado);
 
         return ResponseEntity
                 .created(URI.create("/api/sesiones/" + id))
@@ -33,6 +39,7 @@ public class SesionClaseController {
     public List<UserResponseDTO> getStudentsForSession(@PathVariable Long sessionId) {
         return sesionClaseService.getStudentsForSession(sessionId);
     }
+
     @GetMapping("/curso/{cursoId}")
     public ResponseEntity<List<SesionClaseResponseDTO>> porCurso(@PathVariable Long cursoId) {
         return ResponseEntity.ok(sesionClaseService.obtenerPorCurso(cursoId));
@@ -43,7 +50,6 @@ public class SesionClaseController {
             @PathVariable Long profesorId,
             @RequestParam(required = false) Integer day
     ) {
-
         if (day != null) {
             return ResponseEntity.ok(
                     sesionClaseService.obtenerPorProfesorYDia(profesorId, day)

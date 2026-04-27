@@ -20,61 +20,64 @@ public class AsignaturaController {
     private final AsignaturaService subjectService;
 
     // ================= CREATE =================
-
     @PostMapping
     public ResponseEntity<SubjectResponseDTO> create(
-            @RequestBody SubjectRequestDTO dto
+            @RequestBody SubjectRequestDTO dto,
+            @AuthenticationPrincipal Usuario adminLogueado
     ) {
-        return ResponseEntity.ok(subjectService.create(dto));
+        return ResponseEntity.ok(subjectService.create(dto, adminLogueado));
     }
 
     // ================= UPDATE =================
-
     @PutMapping("/{id}")
     public ResponseEntity<SubjectResponseDTO> update(
             @PathVariable Long id,
-            @RequestBody SubjectRequestDTO dto
+            @RequestBody SubjectRequestDTO dto,
+            @AuthenticationPrincipal Usuario adminLogueado
     ) {
-        return ResponseEntity.ok(subjectService.update(id, dto));
+        return ResponseEntity.ok(subjectService.update(id, dto, adminLogueado));
     }
 
     // ================= READ =================
-
     @GetMapping
-    public ResponseEntity<List<SubjectResponseDTO>> getAll() {
-        return ResponseEntity.ok(subjectService.findAll());
+    public ResponseEntity<List<SubjectResponseDTO>> getAll(
+            @AuthenticationPrincipal Usuario adminLogueado
+    ) {
+        return ResponseEntity.ok(subjectService.findAll(adminLogueado));
     }
 
     @GetMapping("/center/{centerId}")
     public ResponseEntity<List<SubjectResponseDTO>> getByCenter(
-            @PathVariable Long centerId
+            @PathVariable Long centerId,
+            @AuthenticationPrincipal Usuario adminLogueado
     ) {
-        return ResponseEntity.ok(subjectService.findByCenter(centerId));
+        return ResponseEntity.ok(subjectService.findByCenter(centerId, adminLogueado));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<SubjectResponseDTO> getById(
-            @PathVariable Long id
+            @PathVariable Long id,
+            @AuthenticationPrincipal Usuario adminLogueado
     ) {
-        return ResponseEntity.ok(subjectService.findById(id));
+        return ResponseEntity.ok(subjectService.findById(id, adminLogueado));
     }
 
     // ================= DELETE =================
-
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        subjectService.delete(id);
+    public ResponseEntity<Void> delete(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Usuario adminLogueado
+    ) {
+        subjectService.delete(id, adminLogueado);
         return ResponseEntity.noContent().build();
     }
 
     // ================= MINE =================
-
     @GetMapping("/mine")
     public ResponseEntity<List<SubjectResponseDTO>> getMySubjects(
             @AuthenticationPrincipal Usuario usuario
     ) {
-        return ResponseEntity.ok(
-                subjectService.getSubjectsForTeacher(usuario)
-        );
+        // Este ya lo tenías bien configurado
+        return ResponseEntity.ok(subjectService.getSubjectsForTeacher(usuario));
     }
 }
