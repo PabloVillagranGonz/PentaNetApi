@@ -1,5 +1,6 @@
 package org.example.centrosnetapi.models;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
@@ -28,6 +29,10 @@ public class Usuario implements UserDetails {
     private Long id;
 
     // ================= RELACIONES =================
+
+    @JsonIgnore
+    @OneToMany(mappedBy = "alumno", cascade = CascadeType.ALL)
+    private List<Calificacion> calificaciones;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "centro_id")

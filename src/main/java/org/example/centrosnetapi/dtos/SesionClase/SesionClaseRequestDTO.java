@@ -1,5 +1,6 @@
 package org.example.centrosnetapi.dtos.SesionClase;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
@@ -35,10 +36,11 @@ public class SesionClaseRequestDTO {
     private Integer diaSemana;
 
     @NotNull
+    @JsonFormat(pattern = "HH:mm")
     private LocalTime horaInicio;
 
     @NotNull
+    @JsonFormat(pattern = "HH:mm")
     private LocalTime horaFin;
-
     private String notas;
 }

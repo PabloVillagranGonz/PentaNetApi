@@ -75,6 +75,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/students/**").authenticated()
                         .requestMatchers("/api/asignaturas-curso/**").authenticated()
                         .requestMatchers("/api/sesiones/**").authenticated()
+                        .requestMatchers("/api/evaluacion/**").authenticated()
 
                         // 3. CUALQUIER OTRA PETICIÓN
                         .anyRequest().authenticated()

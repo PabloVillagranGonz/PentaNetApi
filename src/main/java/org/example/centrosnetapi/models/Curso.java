@@ -33,6 +33,9 @@ public class Curso {
 
     // ================= RELACIÓN =================
 
+    @OneToMany(mappedBy = "curso", cascade = CascadeType.ALL)
+    private List<CriterioEvaluacion> criterios;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "centro_id", nullable = false)
     @JsonIgnoreProperties("cursos")

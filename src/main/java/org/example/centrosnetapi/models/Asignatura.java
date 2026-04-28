@@ -53,6 +53,9 @@ public class Asignatura {
 
     // ================= RELACIONES INVERSAS =================
 
+    @OneToMany(mappedBy = "asignatura", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<CriterioEvaluacion> criterios;
+
     @OneToMany(mappedBy = "asignatura", fetch = FetchType.LAZY)
     private List<AsignacionDocente> asignacionesDocentes = new ArrayList<>();
 

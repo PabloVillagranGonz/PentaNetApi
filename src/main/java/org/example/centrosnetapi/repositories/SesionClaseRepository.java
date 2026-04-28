@@ -1,5 +1,6 @@
 package org.example.centrosnetapi.repositories;
 
+import org.example.centrosnetapi.models.AsignacionDocente;
 import org.example.centrosnetapi.models.SesionClase;
 import org.example.centrosnetapi.models.Usuario;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -94,4 +95,9 @@ public interface SesionClaseRepository extends JpaRepository<SesionClase, Long> 
        AND s.alumno IS NOT NULL
        """)
     List<Usuario> findStudentsForTeacher(@Param("teacherId") Long teacherId);
+
+    List<SesionClase> findByProfesorId(Long profesorId);
+
+    boolean existsByCursoId(Long cursoId);
+
 }

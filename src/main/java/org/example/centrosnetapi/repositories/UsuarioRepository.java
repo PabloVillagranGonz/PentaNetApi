@@ -24,6 +24,8 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     // 🔎 Usuarios por curso
     List<Usuario> findByCursoId(Long cursoId);
 
+    boolean existsByCursoId(Long cursoId);
+
     // 🔎 Usuarios por curso y rol (muy útil)
     List<Usuario> findByCurso_IdAndRol(Long cursoId, Rol rol);
 
@@ -39,5 +41,5 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
 
     List<Usuario> findByCentroId(Long centroId);
 
-    Optional<Usuario> findByEmailIgnoreCaseAndCentroId(String email, Long centroId);
+    List<Usuario> findByRolAndCursoId(Rol rol, Long cursoId);
 }

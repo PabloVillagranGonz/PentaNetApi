@@ -23,6 +23,21 @@ public class CursoController {
 
     private final CourseService courseService;
 
+    @GetMapping("/{id}/asignaturas")
+    public ResponseEntity<List<Long>> getCourseSubjects(@PathVariable Long id) {
+        return ResponseEntity.ok(courseService.getSubjectIdsByCourse(id));
+    }
+
+    @PutMapping("/{id}/asignaturas")
+    public ResponseEntity<Void> syncSubjects(
+            @PathVariable Long id,
+            @RequestBody List<Long> subjectIds,
+            @AuthenticationPrincipal Usuario adminLogueado
+    ) {
+        courseService.syncSubjects(id, subjectIds, adminLogueado);
+        return ResponseEntity.noContent().build();
+    }
+
     // ================= CREATE =================
     @PostMapping
     public ResponseEntity<CourseResponseDTO> create(

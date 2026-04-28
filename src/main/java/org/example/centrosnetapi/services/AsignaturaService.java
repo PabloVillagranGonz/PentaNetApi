@@ -18,6 +18,7 @@ public class AsignaturaService {
 
     private final AsignaturaRepository asignaturaRepository;
     private final CentroRepository centroRepository;
+    private final AsignaturaCursoRepository asignaturaCursoRepository;
 
     // ================= CREATE =================
     @PreAuthorize("hasRole('ADMIN')")
@@ -138,9 +139,15 @@ public class AsignaturaService {
         Asignatura asignatura = asignaturaRepository.findById(id)
                 .orElseThrow(() -> new ApiException("ASIGNATURA_NOT_FOUND", HttpStatus.NOT_FOUND));
 
-        // 🔥 CANDADO SAAS
+        // 1. Candado SaaS
         if (adminLogueado.getCentro() != null && !adminLogueado.getCentro().getId().equals(asignatura.getCentro().getId())) {
             throw new ApiException("NO_PUEDES_BORRAR_ASIGNATURAS_DE_OTRO_CENTRO", HttpStatus.FORBIDDEN);
+        }
+
+        // 2. 🔥 PROTECCIÓN: ¿Está la asignatura en algún plan de estudios (curso)?
+        // Necesitas tener existsByAsignaturaId en el repo de AsignaturaCurso
+        if (asignaturaCursoRepository.existsByAsignaturaId(id)) {
+            throw new ApiException("ASIGNATURA_CON_DEPENDENCIAS", HttpStatus.CONFLICT);
         }
 
         asignaturaRepository.deleteById(id);

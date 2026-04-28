@@ -21,10 +21,12 @@ public class CourseService {
     private final CentroRepository centroRepository;
     private final AsignaturaRepository asignaturaRepository;
     private final AsignaturaCursoRepository asignaturaCursoRepository;
+    private final UsuarioRepository usuarioRepository;
+    private final SesionClaseRepository sesionClaseRepository;
 
     // ============================================================
-    // CREATE
-    // ============================================================
+// CREATE
+// ============================================================
     public CourseResponseDTO create(CourseRequestDTO dto, Usuario adminLogueado) {
 
         // 🔥 CANDADO SAAS: Forzar centro si es Admin Local
@@ -32,6 +34,11 @@ public class CourseService {
             dto.setCentroId(adminLogueado.getCentro().getId());
         } else if (dto.getCentroId() == null) {
             throw new ApiException("CENTRO_REQUIRED", HttpStatus.BAD_REQUEST);
+        }
+
+        // 🛑 VALIDACIÓN DE DUPLICADOS:
+        if (cursoRepository.existsByNombreAndCentroId(dto.getNombre(), dto.getCentroId())) {
+            throw new ApiException("CURSO_YA_EXISTE", HttpStatus.CONFLICT);
         }
 
         Centro centro = centroRepository.findById(dto.getCentroId())
@@ -46,6 +53,32 @@ public class CourseService {
 
         curso = cursoRepository.save(curso);
         return toDTO(curso);
+    }
+
+    // ============================================================
+// UPDATE
+// ============================================================
+    public CourseResponseDTO update(Long id, CourseRequestDTO dto, Usuario adminLogueado) {
+        Curso curso = cursoRepository.findById(id)
+                .orElseThrow(() -> new ApiException("CURSO_NOT_FOUND", HttpStatus.NOT_FOUND));
+
+        // 🔥 CANDADO SAAS
+        if (adminLogueado.getCentro() != null && !adminLogueado.getCentro().getId().equals(curso.getCentro().getId())) {
+            throw new ApiException("NO_PUEDES_EDITAR_CURSOS_DE_OTRO_CENTRO", HttpStatus.FORBIDDEN);
+        }
+
+        // 🛑 VALIDACIÓN DE DUPLICADOS AL EDITAR:
+        // Comprueba si ya existe otro curso con ese nombre en el mismo centro,
+        // pero que no sea el curso que estamos editando ahora mismo.
+        if (cursoRepository.existsByNombreAndCentroIdAndIdNot(dto.getNombre(), curso.getCentro().getId(), id)) {
+            throw new ApiException("CURSO_YA_EXISTE", HttpStatus.CONFLICT);
+        }
+
+        curso.setNombre(dto.getNombre());
+        curso.setAnio(dto.getAnio());
+        curso.setNotas(dto.getNotas());
+
+        return toDTO(cursoRepository.save(curso));
     }
 
     // ============================================================
@@ -86,39 +119,29 @@ public class CourseService {
     }
 
     // ============================================================
-    // UPDATE
-    // ============================================================
-    public CourseResponseDTO update(Long id, CourseRequestDTO dto, Usuario adminLogueado) {
-        Curso curso = cursoRepository.findById(id)
-                .orElseThrow(() -> new ApiException("CURSO_NOT_FOUND", HttpStatus.NOT_FOUND));
-
-        // 🔥 CANDADO SAAS
-        if (adminLogueado.getCentro() != null && !adminLogueado.getCentro().getId().equals(curso.getCentro().getId())) {
-            throw new ApiException("NO_PUEDES_EDITAR_CURSOS_DE_OTRO_CENTRO", HttpStatus.FORBIDDEN);
-        }
-
-        curso.setNombre(dto.getNombre());
-        curso.setAnio(dto.getAnio());
-        curso.setNotas(dto.getNotas());
-
-        return toDTO(cursoRepository.save(curso));
-    }
-
-    // ============================================================
-    // DELETE
+    // DELETE (Corregido)
     // ============================================================
     public void delete(Long id, Usuario adminLogueado) {
         Curso curso = cursoRepository.findById(id)
                 .orElseThrow(() -> new ApiException("CURSO_NOT_FOUND", HttpStatus.NOT_FOUND));
 
-        // 🔥 CANDADO SAAS
+        // 1. Candado SaaS
         if (adminLogueado.getCentro() != null && !adminLogueado.getCentro().getId().equals(curso.getCentro().getId())) {
             throw new ApiException("NO_PUEDES_BORRAR_CURSOS_DE_OTRO_CENTRO", HttpStatus.FORBIDDEN);
         }
 
+        // 2. 🔥 COMPROBACIÓN DE DEPENDENCIAS (Usando Repositorios)
+        // Preguntamos directamente a las tablas si hay rastro de este curso
+        boolean tieneAlumnos = usuarioRepository.existsByCursoId(id);
+        boolean tieneAsignaturas = asignaturaCursoRepository.existsByCursoId(id);
+        boolean tieneSesiones = sesionClaseRepository.existsByCursoId(id);
+
+        if (tieneAlumnos || tieneAsignaturas || tieneSesiones) {
+            throw new ApiException("CURSO_CON_DEPENDENCIAS", HttpStatus.CONFLICT);
+        }
+
         cursoRepository.deleteById(id);
     }
-
     // ============================================================
     // RELACIÓN ASIGNATURA - CURSO
     // ============================================================
@@ -164,5 +187,42 @@ public class CourseService {
                 .centroId(curso.getCentro() != null ? curso.getCentro().getId() : null)
                 .centroNombre(curso.getCentro() != null ? curso.getCentro().getNombre() : null)
                 .build();
+    }
+
+    // Obtener solo los IDs de las asignaturas vinculadas (para marcar los checkboxes)
+    public List<Long> getSubjectIdsByCourse(Long cursoId) {
+        return asignaturaCursoRepository.findByCurso_Id(cursoId)
+                .stream()
+                .map(ac -> ac.getAsignatura().getId())
+                .toList();
+    }
+
+    // Sincronizar: Borra lo que había y mete lo nuevo (Limpieza total)
+    @Transactional
+    public void syncSubjects(Long cursoId, List<Long> subjectIds, Usuario adminLogueado) {
+        Curso curso = cursoRepository.findById(cursoId)
+                .orElseThrow(() -> new ApiException("CURSO_NOT_FOUND", HttpStatus.NOT_FOUND));
+
+        // Validar acceso SaaS
+        if (adminLogueado.getCentro() != null && !adminLogueado.getCentro().getId().equals(curso.getCentro().getId())) {
+            throw new ApiException("ACCESO_DENEGADO", HttpStatus.FORBIDDEN);
+        }
+
+        // 1. Borramos las relaciones actuales de este curso
+        // Necesitarás añadir este método en el Repository (te lo pongo abajo)
+        asignaturaCursoRepository.deleteByCursoId(cursoId);
+
+        // 2. Creamos las nuevas
+        for (Long sId : subjectIds) {
+            Asignatura asignatura = asignaturaRepository.findById(sId)
+                    .orElseThrow(() -> new ApiException("ASIGNATURA_NOT_FOUND", HttpStatus.NOT_FOUND));
+
+            AsignaturaCurso ac = AsignaturaCurso.builder()
+                    .curso(curso)
+                    .asignatura(asignatura)
+                    .horasSemanales(java.math.BigDecimal.ZERO)
+                    .build();
+            asignaturaCursoRepository.save(ac);
+        }
     }
 }

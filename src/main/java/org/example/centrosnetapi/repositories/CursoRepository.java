@@ -21,4 +21,10 @@ public interface CursoRepository extends JpaRepository<Curso, Long> {
     WHERE ac.asignatura.id = :asignaturaId
 """)
     Optional<Curso> findFirstByAsignaturasId(@Param("asignaturaId") Long asignaturaId);
+
+    // 🔥 Este es el nuevo método para la validación
+    boolean existsByNombreAndCentroId(String nombre, Long centroId);
+
+    // 🔥 Para el update: check si existe el nombre en el centro pero NO es el curso actual
+    boolean existsByNombreAndCentroIdAndIdNot(String nombre, Long centroId, Long id);
 }
