@@ -18,12 +18,6 @@ public interface ReservaRepository extends JpaRepository<Reserva, Long> {
     // Espacio con reserva activa
     List<Reserva> findAllByEspacio_IdAndFinRealIsNull(Long espacioId);
 
-    // Para dashboard (más eficiente)
-    boolean existsByEspacio_IdAndFinRealIsNullAndFinAfter(
-            Long espacioId,
-            LocalDateTime ahora
-    );
-
     // Activas
     List<Reserva> findByFinRealIsNull();
 

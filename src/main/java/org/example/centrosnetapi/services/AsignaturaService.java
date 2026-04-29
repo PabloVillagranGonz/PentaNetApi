@@ -20,140 +20,78 @@ public class AsignaturaService {
     private final CentroRepository centroRepository;
     private final AsignaturaCursoRepository asignaturaCursoRepository;
 
-    // ================= CREATE =================
+    // ============================================================
+    // MÉTODOS PÚBLICOS (Lógica de Negocio)
+    // ============================================================
+
     @PreAuthorize("hasRole('ADMIN')")
     public SubjectResponseDTO create(SubjectRequestDTO dto, Usuario adminLogueado) {
-
-        if (dto.getNombre() == null || dto.getNombre().isBlank()) {
-            throw new ApiException("SUBJECT_NAME_REQUIRED", HttpStatus.BAD_REQUEST);
-        }
-
-        // 🔥 CANDADO SAAS: Si es Admin de centro, forzamos su ID
-        if (adminLogueado.getCentro() != null) {
-            dto.setCentroId(adminLogueado.getCentro().getId());
-        } else if (dto.getCentroId() == null) {
-            throw new ApiException("CENTRO_REQUIRED", HttpStatus.BAD_REQUEST);
-        }
-
-        if (dto.getTipo() == null || dto.getTipo().isBlank()) {
-            throw new ApiException("TIPO_REQUIRED", HttpStatus.BAD_REQUEST);
-        }
-
-        Centro centro = centroRepository.findById(dto.getCentroId())
-                .orElseThrow(() -> new ApiException("CENTRO_NOT_FOUND", HttpStatus.NOT_FOUND));
-
+        validarDatosBasicos(dto);
+        Long centroId = resolverCentroIdSaaS(dto.getCentroId(), adminLogueado);
         String nombreNormalizado = dto.getNombre().trim();
 
-        if (asignaturaRepository.existsByNombreAndCentroId(nombreNormalizado, dto.getCentroId())) {
-            throw new ApiException("ASIGNATURA_YA_EXISTE_EN_CENTRO", HttpStatus.BAD_REQUEST);
-        }
+        validarNoDuplicado(nombreNormalizado, centroId, null);
 
-        TipoAsignatura tipo;
-        try {
-            tipo = TipoAsignatura.valueOf(dto.getTipo().trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new ApiException("TIPO_ASIGNATURA_INVALIDO", HttpStatus.BAD_REQUEST);
-        }
+        Centro centro = centroRepository.findById(centroId)
+                .orElseThrow(() -> new ApiException("CENTRO_NOT_FOUND", HttpStatus.NOT_FOUND));
 
         Asignatura asignatura = Asignatura.builder()
                 .nombre(nombreNormalizado)
                 .descripcion(dto.getDescripcion() != null ? dto.getDescripcion().trim() : null)
                 .duracionMinutos(dto.getDuracionMinutos() != null ? dto.getDuracionMinutos() : 60)
-                .tipo(tipo)
+                .tipo(parseTipoAsignatura(dto.getTipo()))
                 .centro(centro)
                 .build();
 
         return toDTO(asignaturaRepository.save(asignatura));
     }
 
-    // ================= UPDATE =================
     @PreAuthorize("hasRole('ADMIN')")
     public SubjectResponseDTO update(Long id, SubjectRequestDTO dto, Usuario adminLogueado) {
-
-        Asignatura asignatura = asignaturaRepository.findById(id)
-                .orElseThrow(() -> new ApiException("ASIGNATURA_NOT_FOUND", HttpStatus.NOT_FOUND));
-
-        // 🔥 CANDADO SAAS: No editar asignaturas de otro centro
-        if (adminLogueado.getCentro() != null && !adminLogueado.getCentro().getId().equals(asignatura.getCentro().getId())) {
-            throw new ApiException("NO_PUEDES_EDITAR_ASIGNATURAS_DE_OTRO_CENTRO", HttpStatus.FORBIDDEN);
-        }
+        Asignatura asignatura = buscarAsignaturaValidada(id, adminLogueado, "NO_PUEDES_EDITAR_ASIGNATURAS_DE_OTRO_CENTRO");
 
         if (dto.getNombre() != null) {
             String nuevoNombre = dto.getNombre().trim();
-            if (asignaturaRepository.existsByNombreAndCentroIdAndIdNot(
-                    nuevoNombre, asignatura.getCentro().getId(), id)) {
-                throw new ApiException("ASIGNATURA_YA_EXISTE_EN_CENTRO", HttpStatus.BAD_REQUEST);
-            }
+            validarNoDuplicado(nuevoNombre, asignatura.getCentro().getId(), id);
             asignatura.setNombre(nuevoNombre);
         }
 
         if (dto.getDescripcion() != null) asignatura.setDescripcion(dto.getDescripcion().trim());
         if (dto.getDuracionMinutos() != null) asignatura.setDuracionMinutos(dto.getDuracionMinutos());
-
-        if (dto.getTipo() != null) {
-            try {
-                asignatura.setTipo(TipoAsignatura.valueOf(dto.getTipo().trim().toUpperCase()));
-            } catch (IllegalArgumentException e) {
-                throw new ApiException("TIPO_ASIGNATURA_INVALIDO", HttpStatus.BAD_REQUEST);
-            }
-        }
+        if (dto.getTipo() != null) asignatura.setTipo(parseTipoAsignatura(dto.getTipo()));
 
         return toDTO(asignaturaRepository.save(asignatura));
     }
 
-    // ================= READ =================
     @PreAuthorize("isAuthenticated()")
     public List<SubjectResponseDTO> findAll(Usuario adminLogueado) {
-        // 🔥 CANDADO SAAS: El Super Admin ve todo, el Admin local solo lo suyo
         if (adminLogueado.getCentro() == null) {
             return asignaturaRepository.findAll().stream().map(this::toDTO).toList();
-        } else {
-            return asignaturaRepository.findByCentroId(adminLogueado.getCentro().getId())
-                    .stream().map(this::toDTO).toList();
         }
+        return asignaturaRepository.findByCentroId(adminLogueado.getCentro().getId())
+                .stream().map(this::toDTO).toList();
     }
 
     @PreAuthorize("isAuthenticated()")
     public List<SubjectResponseDTO> findByCenter(Long centerId, Usuario adminLogueado) {
-        // 🔥 CANDADO SAAS: No cotillear otros centros
-        if (adminLogueado.getCentro() != null && !adminLogueado.getCentro().getId().equals(centerId)) {
-            throw new ApiException("NO_PUEDES_VER_ASIGNATURAS_DE_OTRO_CENTRO", HttpStatus.FORBIDDEN);
-        }
+        validarAccesoSaaS(adminLogueado, centerId, "NO_PUEDES_VER_ASIGNATURAS_DE_OTRO_CENTRO");
         return asignaturaRepository.findByCentroId(centerId).stream().map(this::toDTO).toList();
     }
 
     @PreAuthorize("isAuthenticated()")
     public SubjectResponseDTO findById(Long id, Usuario adminLogueado) {
-        Asignatura asignatura = asignaturaRepository.findById(id)
-                .orElseThrow(() -> new ApiException("ASIGNATURA_NOT_FOUND", HttpStatus.NOT_FOUND));
-
-        if (adminLogueado.getCentro() != null && !adminLogueado.getCentro().getId().equals(asignatura.getCentro().getId())) {
-            throw new ApiException("ACCESO_DENEGADO", HttpStatus.FORBIDDEN);
-        }
+        Asignatura asignatura = buscarAsignaturaValidada(id, adminLogueado, "ACCESO_DENEGADO");
         return toDTO(asignatura);
     }
 
-    // ================= DELETE =================
     @PreAuthorize("hasRole('ADMIN')")
     public void delete(Long id, Usuario adminLogueado) {
-        Asignatura asignatura = asignaturaRepository.findById(id)
-                .orElseThrow(() -> new ApiException("ASIGNATURA_NOT_FOUND", HttpStatus.NOT_FOUND));
-
-        // 1. Candado SaaS
-        if (adminLogueado.getCentro() != null && !adminLogueado.getCentro().getId().equals(asignatura.getCentro().getId())) {
-            throw new ApiException("NO_PUEDES_BORRAR_ASIGNATURAS_DE_OTRO_CENTRO", HttpStatus.FORBIDDEN);
-        }
-
-        // 2. 🔥 PROTECCIÓN: ¿Está la asignatura en algún plan de estudios (curso)?
-        // Necesitas tener existsByAsignaturaId en el repo de AsignaturaCurso
-        if (asignaturaCursoRepository.existsByAsignaturaId(id)) {
-            throw new ApiException("ASIGNATURA_CON_DEPENDENCIAS", HttpStatus.CONFLICT);
-        }
+        Asignatura asignatura = buscarAsignaturaValidada(id, adminLogueado, "NO_PUEDES_BORRAR_ASIGNATURAS_DE_OTRO_CENTRO");
+        validarSinDependencias(id);
 
         asignaturaRepository.deleteById(id);
     }
 
-    // ================= TEACHER SUBJECTS =================
     @PreAuthorize("hasRole('PROFESOR')")
     public List<SubjectResponseDTO> getSubjectsForTeacher(Usuario profesor) {
         if (profesor.getRol() != Rol.PROFESOR) {
@@ -163,7 +101,72 @@ public class AsignaturaService {
                 .stream().map(this::toDTO).toList();
     }
 
-    // ================= DTO =================
+    // ============================================================
+    // MÉTODOS PRIVADOS (Validaciones y Buscadores)
+    // ============================================================
+
+    private Asignatura buscarAsignaturaValidada(Long id, Usuario adminLogueado, String mensajeErrorSaaS) {
+        Asignatura asignatura = asignaturaRepository.findById(id)
+                .orElseThrow(() -> new ApiException("ASIGNATURA_NOT_FOUND", HttpStatus.NOT_FOUND));
+
+        validarAccesoSaaS(adminLogueado, asignatura.getCentro().getId(), mensajeErrorSaaS);
+        return asignatura;
+    }
+
+    private void validarAccesoSaaS(Usuario usuario, Long centroIdObjetivo, String mensajeError) {
+        if (usuario.getCentro() != null && !usuario.getCentro().getId().equals(centroIdObjetivo)) {
+            throw new ApiException(mensajeError, HttpStatus.FORBIDDEN);
+        }
+    }
+
+    private Long resolverCentroIdSaaS(Long dtoCentroId, Usuario adminLogueado) {
+        if (adminLogueado.getCentro() != null) {
+            return adminLogueado.getCentro().getId();
+        } else if (dtoCentroId == null) {
+            throw new ApiException("CENTRO_REQUIRED", HttpStatus.BAD_REQUEST);
+        }
+        return dtoCentroId;
+    }
+
+    private void validarDatosBasicos(SubjectRequestDTO dto) {
+        if (dto.getNombre() == null || dto.getNombre().isBlank()) {
+            throw new ApiException("SUBJECT_NAME_REQUIRED", HttpStatus.BAD_REQUEST);
+        }
+        if (dto.getTipo() == null || dto.getTipo().isBlank()) {
+            throw new ApiException("TIPO_REQUIRED", HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    private TipoAsignatura parseTipoAsignatura(String tipoStr) {
+        try {
+            return TipoAsignatura.valueOf(tipoStr.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new ApiException("TIPO_ASIGNATURA_INVALIDO", HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    private void validarNoDuplicado(String nombre, Long centroId, Long idExcluido) {
+        boolean existe;
+        if (idExcluido == null) {
+            existe = asignaturaRepository.existsByNombreAndCentroId(nombre, centroId);
+        } else {
+            existe = asignaturaRepository.existsByNombreAndCentroIdAndIdNot(nombre, centroId, idExcluido);
+        }
+
+        if (existe) {
+            throw new ApiException("ASIGNATURA_YA_EXISTE_EN_CENTRO", HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    private void validarSinDependencias(Long id) {
+        if (asignaturaCursoRepository.existsByAsignaturaId(id)) {
+            throw new ApiException("ASIGNATURA_CON_DEPENDENCIAS", HttpStatus.CONFLICT);
+        }
+    }
+
+    // ============================================================
+    // MAPPER
+    // ============================================================
     private SubjectResponseDTO toDTO(Asignatura a) {
         return SubjectResponseDTO.builder()
                 .id(a.getId())

@@ -1,6 +1,6 @@
 package org.example.centrosnetapi.services;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.example.centrosnetapi.dtos.Estudiante.StudentSubjectDTO;
 import org.example.centrosnetapi.dtos.SesionClase.SesionClaseRequestDTO;
@@ -12,7 +12,9 @@ import org.example.centrosnetapi.repositories.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -26,176 +28,114 @@ public class SesionClaseService {
     private final EspacioRepository espacioRepository;
     private final AsignaturaCursoRepository asignaturaCursoRepository;
 
-    // ==========================================
-    // ALUMNOS: ASIGNATURAS Y HORARIO
-    // ==========================================
+    // ============================================================
+    // MÉTODOS DE ALUMNOS (Asignaturas y Horarios)
+    // ============================================================
+
     public List<StudentSubjectDTO> findStudentSubjects(Long studentId, Usuario usuarioLogueado) {
         Usuario student = validarAccesoAlumno(studentId, usuarioLogueado);
-
-        if (student.getCurso() == null) {
-            return List.of();
-        }
+        if (student.getCurso() == null) return List.of();
 
         return sesionRepository.findByCursoId(student.getCurso().getId())
                 .stream()
-                .map(cs -> new StudentSubjectDTO(
-                        cs.getId(),
-                        cs.getAsignatura().getNombre(),
-                        cs.getProfesor() != null ? cs.getProfesor().getNombre() + " " + cs.getProfesor().getApellidos() : "No asignado",
-                        cs.getEspacio() != null ? cs.getEspacio().getNombre() : "No asignado"
-                ))
+                .map(this::toStudentSubjectDTO)
                 .distinct()
                 .toList();
     }
 
     public List<SesionClaseResponseDTO> findScheduleForStudent(Long studentId, Usuario usuarioLogueado) {
         Usuario student = validarAccesoAlumno(studentId, usuarioLogueado);
-
-        if (student.getCurso() == null) {
-            return List.of();
-        }
+        if (student.getCurso() == null) return List.of();
 
         return sesionRepository.findScheduleForStudent(student.getCurso().getId(), student.getId())
-                .stream().map(this::toDTO).toList();
+                .stream()
+                .map(this::toDTO)
+                .toList();
     }
 
     public List<UserResponseDTO> findTeachersForStudent(Long studentId, Usuario usuarioLogueado) {
         Usuario student = validarAccesoAlumno(studentId, usuarioLogueado);
-
         if (student.getCurso() == null) return List.of();
 
         return sesionRepository.findByCursoId(student.getCurso().getId())
                 .stream()
                 .map(SesionClase::getProfesor)
-                .filter(p -> p != null)
+                .filter(Objects::nonNull) // 🔥 Código más limpio usando Objects::nonNull
                 .distinct()
                 .map(this::toUserDTO)
                 .toList();
     }
 
-    // Helper de Seguridad para accesos de Alumno
-    private Usuario validarAccesoAlumno(Long studentId, Usuario usuarioLogueado) {
-        Usuario student = usuarioRepository.findById(studentId)
-                .orElseThrow(() -> new ApiException("USER_NOT_FOUND", HttpStatus.NOT_FOUND));
+    // ============================================================
+    // CREACIÓN DE SESIONES (Core Logic)
+    // ============================================================
 
-        // Candado SaaS: O eres el propio alumno, o eres un admin/profesor de SU MISMO centro
-        if (!studentId.equals(usuarioLogueado.getId()) &&
-                usuarioLogueado.getCentro() != null &&
-                !usuarioLogueado.getCentro().getId().equals(student.getCentro().getId())) {
-            throw new ApiException("ACCESO_DENEGADO", HttpStatus.FORBIDDEN);
-        }
-        return student;
-    }
-
-    // ==========================================
-    // CREAR SESIÓN (ASIGNAR HORARIO)
-    // ==========================================
     public Long crearSesion(SesionClaseRequestDTO dto, Usuario adminLogueado) {
-
-        Curso curso = cursoRepository.findById(dto.getCursoId())
-                .orElseThrow(() -> new IllegalArgumentException("Curso no encontrado"));
-
-        // 🔥 CANDADO SAAS: Admin local solo gestiona su centro
-        if (adminLogueado.getCentro() != null && !adminLogueado.getCentro().getId().equals(curso.getCentro().getId())) {
-            throw new ApiException("NO_PUEDES_GESTIONAR_OTROS_CENTROS", HttpStatus.FORBIDDEN);
-        }
-
-        Asignatura asignatura = asignaturaRepository.findById(dto.getAsignaturaId())
-                .orElseThrow(() -> new IllegalArgumentException("Asignatura no encontrada"));
-
-        Usuario profesor = usuarioRepository.findById(dto.getProfesorId())
-                .orElseThrow(() -> new IllegalArgumentException("Profesor no encontrado"));
-
-        Espacio espacio = espacioRepository.findById(dto.getEspacioId())
-                .orElseThrow(() -> new IllegalArgumentException("Espacio no encontrado"));
+        Curso curso = buscarCursoValidado(dto.getCursoId(), adminLogueado);
+        Asignatura asignatura = buscarAsignatura(dto.getAsignaturaId());
+        Usuario profesor = buscarUsuario(dto.getProfesorId(), "PROFESOR_NOT_FOUND");
+        Espacio espacio = buscarEspacio(dto.getEspacioId());
 
         validarDominio(curso, asignatura, profesor, espacio);
 
         if (asignatura.getTipo() == TipoAsignatura.COLECTIVA) {
-            validarSolapamientos(dto, profesor.getId(), espacio.getId(), null);
-            SesionClase sesion = construirSesion(dto, curso, asignatura, profesor, espacio, null);
-            return sesionRepository.save(sesion).getId();
+            return crearSesionColectiva(dto, curso, asignatura, profesor, espacio);
         } else {
-            if (dto.getAlumnoId() != null) {
-                Usuario alumno = usuarioRepository.findById(dto.getAlumnoId())
-                        .orElseThrow(() -> new IllegalArgumentException("Alumno no encontrado"));
-                validarSolapamientos(dto, profesor.getId(), espacio.getId(), alumno.getId());
-                SesionClase sesion = construirSesion(dto, curso, asignatura, profesor, espacio, alumno);
-                return sesionRepository.save(sesion).getId();
-            } else {
-                List<Usuario> alumnos = usuarioRepository.findByCursoId(curso.getId());
-                if (alumnos.isEmpty()) throw new IllegalArgumentException("El curso no tiene alumnos");
-
-                Long lastId = null;
-                for (Usuario alumno : alumnos) {
-                    validarSolapamientos(dto, profesor.getId(), espacio.getId(), alumno.getId());
-                    SesionClase sesion = construirSesion(dto, curso, asignatura, profesor, espacio, alumno);
-                    lastId = sesionRepository.save(sesion).getId();
-                }
-                return lastId;
-            }
+            return crearSesionesIndividuales(dto, curso, asignatura, profesor, espacio);
         }
     }
 
-    // ==========================================
-    // ALUMNOS DE UNA SESIÓN
-    // ==========================================
+    private Long crearSesionColectiva(SesionClaseRequestDTO dto, Curso curso, Asignatura asignatura, Usuario profesor, Espacio espacio) {
+        validarSolapamientos(dto, profesor.getId(), espacio.getId(), null);
+        SesionClase sesion = construirSesion(dto, curso, asignatura, profesor, espacio, null);
+
+        return sesionRepository.save(sesion).getId();
+    }
+
+    private Long crearSesionesIndividuales(SesionClaseRequestDTO dto, Curso curso, Asignatura asignatura, Usuario profesor, Espacio espacio) {
+        if (dto.getAlumnoId() != null) {
+            // Sesión para 1 solo alumno
+            Usuario alumno = buscarUsuario(dto.getAlumnoId(), "ALUMNO_NOT_FOUND");
+            validarSolapamientos(dto, profesor.getId(), espacio.getId(), alumno.getId());
+
+            SesionClase sesion = construirSesion(dto, curso, asignatura, profesor, espacio, alumno);
+            return sesionRepository.save(sesion).getId();
+        } else {
+            // Sesión individual generada en bloque para todos los alumnos del curso
+            List<Usuario> alumnos = usuarioRepository.findByCursoId(curso.getId());
+            if (alumnos.isEmpty()) throw new ApiException("CURSO_SIN_ALUMNOS", HttpStatus.BAD_REQUEST);
+
+            List<SesionClase> sesiones = new ArrayList<>();
+            for (Usuario alumno : alumnos) {
+                validarSolapamientos(dto, profesor.getId(), espacio.getId(), alumno.getId());
+                sesiones.add(construirSesion(dto, curso, asignatura, profesor, espacio, alumno));
+            }
+
+            // 🔥 OPTIMIZACIÓN: saveAll guarda todas las sesiones en un solo viaje a la BD
+            List<SesionClase> guardadas = sesionRepository.saveAll(sesiones);
+            return guardadas.get(guardadas.size() - 1).getId(); // Devolvemos el último ID para mantener tu contrato original
+        }
+    }
+
+    // ============================================================
+    // CONSULTAS DE SESIÓN
+    // ============================================================
+
     public List<UserResponseDTO> getStudentsForSession(Long sessionId) {
-
         SesionClase sesion = sesionRepository.findById(sessionId)
-                .orElseThrow(() -> new RuntimeException("SESSION_NOT_FOUND"));
+                .orElseThrow(() -> new ApiException("SESSION_NOT_FOUND", HttpStatus.NOT_FOUND));
 
-        // 🎯 CLASE INDIVIDUAL
-        if (sesion.getAlumno() != null) {
+        if (sesion.getAlumno() != null) { // 🎯 CLASE INDIVIDUAL
             return List.of(toUserDTO(sesion.getAlumno()));
         }
 
         // 🎯 CLASE COLECTIVA
-        return usuarioRepository
-                .findByCurso_IdAndRol(sesion.getCurso().getId(), Rol.ALUMNO)
+        return usuarioRepository.findByCurso_IdAndRol(sesion.getCurso().getId(), Rol.ALUMNO)
                 .stream()
                 .map(this::toUserDTO)
                 .toList();
     }
 
-    // ================= VALIDACIONES DOMINIO =================
-    private void validarDominio(Curso curso, Asignatura asignatura, Usuario profesor, Espacio espacio) {
-        if (profesor.getRol() != Rol.PROFESOR) throw new IllegalArgumentException("El usuario no tiene rol de profesor");
-        if (!asignaturaCursoRepository.existsByCursoIdAndAsignaturaId(curso.getId(), asignatura.getId())) {
-            throw new IllegalArgumentException("La asignatura no pertenece al curso");
-        }
-        if (!curso.getCentro().getId().equals(espacio.getCentro().getId())) {
-            throw new IllegalArgumentException("El espacio no pertenece al mismo centro");
-        }
-    }
-
-    private void validarSolapamientos(SesionClaseRequestDTO dto, Long profesorId, Long espacioId, Long alumnoId) {
-        if (sesionRepository.existsConflictingSessionForEspacio(espacioId, dto.getDiaSemana(), dto.getHoraInicio(), dto.getHoraFin())) {
-            throw new IllegalArgumentException("El espacio ya está ocupado en ese horario");
-        }
-        if (sesionRepository.existsConflictingSessionForProfesor(profesorId, dto.getDiaSemana(), dto.getHoraInicio(), dto.getHoraFin())) {
-            throw new IllegalArgumentException("El profesor ya tiene clase en ese horario");
-        }
-        if (alumnoId != null && sesionRepository.existsConflictingSessionForAlumno(alumnoId, dto.getDiaSemana(), dto.getHoraInicio(), dto.getHoraFin())) {
-            throw new IllegalArgumentException("El alumno ya tiene clase en ese horario");
-        }
-    }
-
-    private SesionClase construirSesion(SesionClaseRequestDTO dto, Curso curso, Asignatura asignatura, Usuario profesor, Espacio espacio, Usuario alumno) {
-        return SesionClase.builder()
-                .curso(curso)
-                .asignatura(asignatura)
-                .profesor(profesor)
-                .espacio(espacio)
-                .alumno(alumno)
-                .diaSemana(dto.getDiaSemana())
-                .horaInicio(dto.getHoraInicio())
-                .horaFin(dto.getHoraFin())
-                .notas(dto.getNotas())
-                .build();
-    }
-
-    // ================= CONSULTAS =================
     public List<SesionClaseResponseDTO> obtenerPorCurso(Long cursoId) {
         return sesionRepository.findByCurso_IdOrderByDiaSemanaAscHoraInicioAsc(cursoId)
                 .stream().map(this::toDTO).toList();
@@ -216,7 +156,97 @@ public class SesionClaseService {
                 .stream().map(this::toDTO).toList();
     }
 
-    // ================= MAPPERS =================
+    // ============================================================
+    // PRIVADOS: BUSCADORES Y VALIDACIONES DE DOMINIO
+    // ============================================================
+
+    private Curso buscarCursoValidado(Long cursoId, Usuario adminLogueado) {
+        Curso curso = cursoRepository.findById(cursoId)
+                .orElseThrow(() -> new ApiException("CURSO_NOT_FOUND", HttpStatus.NOT_FOUND));
+
+        if (adminLogueado.getCentro() != null && !adminLogueado.getCentro().getId().equals(curso.getCentro().getId())) {
+            throw new ApiException("NO_PUEDES_GESTIONAR_OTROS_CENTROS", HttpStatus.FORBIDDEN);
+        }
+        return curso;
+    }
+
+    private Asignatura buscarAsignatura(Long id) {
+        return asignaturaRepository.findById(id)
+                .orElseThrow(() -> new ApiException("ASIGNATURA_NOT_FOUND", HttpStatus.NOT_FOUND));
+    }
+
+    private Espacio buscarEspacio(Long id) {
+        return espacioRepository.findById(id)
+                .orElseThrow(() -> new ApiException("ESPACIO_NOT_FOUND", HttpStatus.NOT_FOUND));
+    }
+
+    private Usuario buscarUsuario(Long id, String errorMsg) {
+        return usuarioRepository.findById(id)
+                .orElseThrow(() -> new ApiException(errorMsg, HttpStatus.NOT_FOUND));
+    }
+
+    private Usuario validarAccesoAlumno(Long studentId, Usuario usuarioLogueado) {
+        Usuario student = buscarUsuario(studentId, "USER_NOT_FOUND");
+
+        if (!studentId.equals(usuarioLogueado.getId()) &&
+                usuarioLogueado.getCentro() != null &&
+                !usuarioLogueado.getCentro().getId().equals(student.getCentro().getId())) {
+            throw new ApiException("ACCESO_DENEGADO", HttpStatus.FORBIDDEN);
+        }
+        return student;
+    }
+
+    private void validarDominio(Curso curso, Asignatura asignatura, Usuario profesor, Espacio espacio) {
+        if (profesor.getRol() != Rol.PROFESOR) {
+            throw new ApiException("USUARIO_NO_ES_PROFESOR", HttpStatus.BAD_REQUEST);
+        }
+        if (!asignaturaCursoRepository.existsByCursoIdAndAsignaturaId(curso.getId(), asignatura.getId())) {
+            throw new ApiException("ASIGNATURA_NO_PERTENECE_AL_CURSO", HttpStatus.BAD_REQUEST);
+        }
+        if (!curso.getCentro().getId().equals(espacio.getCentro().getId())) {
+            throw new ApiException("ESPACIO_DISTINTO_CENTRO", HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    private void validarSolapamientos(SesionClaseRequestDTO dto, Long profesorId, Long espacioId, Long alumnoId) {
+        if (sesionRepository.existsConflictingSessionForEspacio(espacioId, dto.getDiaSemana(), dto.getHoraInicio(), dto.getHoraFin())) {
+            throw new ApiException("ESPACIO_OCUPADO_HORARIO", HttpStatus.CONFLICT);
+        }
+        if (sesionRepository.existsConflictingSessionForProfesor(profesorId, dto.getDiaSemana(), dto.getHoraInicio(), dto.getHoraFin())) {
+            throw new ApiException("PROFESOR_OCUPADO_HORARIO", HttpStatus.CONFLICT);
+        }
+        if (alumnoId != null && sesionRepository.existsConflictingSessionForAlumno(alumnoId, dto.getDiaSemana(), dto.getHoraInicio(), dto.getHoraFin())) {
+            throw new ApiException("ALUMNO_OCUPADO_HORARIO", HttpStatus.CONFLICT);
+        }
+    }
+
+    private SesionClase construirSesion(SesionClaseRequestDTO dto, Curso curso, Asignatura asignatura, Usuario profesor, Espacio espacio, Usuario alumno) {
+        return SesionClase.builder()
+                .curso(curso)
+                .asignatura(asignatura)
+                .profesor(profesor)
+                .espacio(espacio)
+                .alumno(alumno)
+                .diaSemana(dto.getDiaSemana())
+                .horaInicio(dto.getHoraInicio())
+                .horaFin(dto.getHoraFin())
+                .notas(dto.getNotas())
+                .build();
+    }
+
+    // ============================================================
+    // MAPPERS
+    // ============================================================
+
+    private StudentSubjectDTO toStudentSubjectDTO(SesionClase cs) {
+        return new StudentSubjectDTO(
+                cs.getId(),
+                cs.getAsignatura().getNombre(),
+                cs.getProfesor() != null ? cs.getProfesor().getNombre() + " " + cs.getProfesor().getApellidos() : "No asignado",
+                cs.getEspacio() != null ? cs.getEspacio().getNombre() : "No asignado"
+        );
+    }
+
     private SesionClaseResponseDTO toDTO(SesionClase s) {
         return SesionClaseResponseDTO.builder()
                 .id(s.getId())

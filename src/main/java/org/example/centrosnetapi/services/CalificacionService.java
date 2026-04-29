@@ -1,12 +1,14 @@
 package org.example.centrosnetapi.services;
 
+import lombok.RequiredArgsConstructor;
 import org.example.centrosnetapi.dtos.Calificacion.AlumnoEvaluacionDTO;
 import org.example.centrosnetapi.dtos.Calificacion.GuardarNotaRequest;
 import org.example.centrosnetapi.dtos.Calificacion.NotaDetalleDTO;
 import org.example.centrosnetapi.dtos.Calificacion.ResumenAsignaturaAlumnoDTO;
+import org.example.centrosnetapi.exceptions.ApiException;
 import org.example.centrosnetapi.models.*;
 import org.example.centrosnetapi.repositories.*;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,158 +19,53 @@ import java.util.List;
 import java.util.Optional;
 
 @Service
+@RequiredArgsConstructor // 🔥 Inyección limpia de dependencias (adiós a los múltiples @Autowired)
 public class CalificacionService {
 
-    @Autowired
-    private CalificacionRepository calificacionRepository;
+    private final CalificacionRepository calificacionRepository;
+    private final CriterioEvaluacionRepository criterioRepository;
+    private final UsuarioRepository usuarioRepository;
+    private final AsignaturaRepository asignaturaRepository;
+    private final CursoRepository cursoRepository;
+    private final SesionClaseRepository sesionClaseRepository;
 
-    @Autowired
-    private CriterioEvaluacionRepository criterioRepository;
-
-    @Autowired
-    private UsuarioRepository usuarioRepository;
-
-    @Autowired
-    private AsignaturaRepository asignaturaRepository;
-
-    @Autowired
-    private CursoRepository cursoRepository;
-
-    // Cambiamos el repositorio para usar el de sesiones (el mismo que usas en asistencia)
-    @Autowired
-    private SesionClaseRepository sesionClaseRepository;
+    // ============================================================
+    // MÉTODOS PÚBLICOS (Lógica Orquestadora)
+    // ============================================================
 
     public List<ResumenAsignaturaAlumnoDTO> obtenerNotasResumenAlumno(Long alumnoId) {
-        // 1. Buscamos al alumno para saber quién es y su curso
-        Usuario alumno = usuarioRepository.findById(alumnoId)
-                .orElseThrow(() -> new RuntimeException("Alumno no encontrado"));
+        Usuario alumno = buscarAlumno(alumnoId);
 
         if (alumno.getCurso() == null) return List.of();
 
-        // 2. 🔥 CLAVE: Buscamos las asignaturas en las SESIONES de su curso
-        // Esto garantiza que vea lo mismo que en Asistencia y lo mismo que ve el Profesor
-        List<SesionClase> sesiones =
-                sesionClaseRepository.findByCursoId(alumno.getCurso().getId());
-
-        // 3. Extraemos las asignaturas únicas de esas sesiones
-        List<Asignatura> asignaturasUnicas = sesiones.stream()
-                .map(s -> s.getAsignatura())
-                .distinct()
+        return obtenerAsignaturasDelCurso(alumno.getCurso().getId())
+                .stream()
+                .map(asignatura -> procesarResumenAsignatura(asignatura, alumno.getCurso().getId(), alumnoId))
                 .toList();
-
-        List<ResumenAsignaturaAlumnoDTO> resumen = new ArrayList<>();
-
-        // 4. Calculamos las medias sobre esas asignaturas del horario
-        for (Asignatura asig : asignaturasUnicas) {
-            List<CriterioEvaluacion> criterios = criterioRepository.findByAsignaturaIdAndCursoId(asig.getId(), alumno.getCurso().getId());
-
-            BigDecimal sumaPonderada = BigDecimal.ZERO;
-            BigDecimal totalPesoEvaluado = BigDecimal.ZERO;
-
-            for (CriterioEvaluacion criterio : criterios) {
-                Optional<Calificacion> calOpt = calificacionRepository.findByCriterioIdAndAlumnoId(criterio.getId(), alumnoId);
-                if (calOpt.isPresent()) {
-                    BigDecimal nota = calOpt.get().getNota();
-                    sumaPonderada = sumaPonderada.add(nota.multiply(criterio.getPeso()));
-                    totalPesoEvaluado = totalPesoEvaluado.add(criterio.getPeso());
-                }
-            }
-
-            BigDecimal media = BigDecimal.ZERO;
-            if (totalPesoEvaluado.compareTo(BigDecimal.ZERO) > 0) {
-                media = sumaPonderada.divide(totalPesoEvaluado, 2, RoundingMode.HALF_UP);
-            }
-
-            resumen.add(ResumenAsignaturaAlumnoDTO.builder()
-                    .asignaturaId(asig.getId())
-                    .asignaturaNombre(asig.getNombre())
-                    .notaMedia(media)
-                    .cursoId(alumno.getCurso().getId())
-                    .build());
-        }
-
-        return resumen;
     }
 
-    // Obtener la tabla de evaluación para el profesor
     public List<AlumnoEvaluacionDTO> obtenerEvaluacionGrupo(Long asignaturaId, Long cursoId) {
         List<Usuario> alumnos = usuarioRepository.findByRolAndCursoId(Rol.ALUMNO, cursoId);
         List<CriterioEvaluacion> criterios = criterioRepository.findByAsignaturaIdAndCursoId(asignaturaId, cursoId);
-        List<AlumnoEvaluacionDTO> respuesta = new ArrayList<>();
 
-        for (Usuario alumno : alumnos) {
-            List<NotaDetalleDTO> detalles = new ArrayList<>();
-            BigDecimal sumaPonderada = BigDecimal.ZERO;
-            BigDecimal totalPesoEvaluado = BigDecimal.ZERO;
-
-            for (CriterioEvaluacion criterio : criterios) {
-                Optional<Calificacion> calOpt = calificacionRepository.findByCriterioIdAndAlumnoId(criterio.getId(), alumno.getId());
-                BigDecimal notaActual = calOpt.map(Calificacion::getNota).orElse(null);
-
-                detalles.add(NotaDetalleDTO.builder()
-                        .criterioId(criterio.getId())
-                        .nombreCriterio(criterio.getNombre())
-                        .peso(criterio.getPeso())
-                        .nota(notaActual)
-                        .build());
-
-                if (notaActual != null) {
-                    sumaPonderada = sumaPonderada.add(notaActual.multiply(criterio.getPeso()));
-                    totalPesoEvaluado = totalPesoEvaluado.add(criterio.getPeso());
-                }
-            }
-
-            BigDecimal mediaFinal = BigDecimal.ZERO;
-            if (totalPesoEvaluado.compareTo(BigDecimal.ZERO) > 0) {
-                mediaFinal = sumaPonderada.divide(totalPesoEvaluado, 2, RoundingMode.HALF_UP);
-            }
-
-            respuesta.add(AlumnoEvaluacionDTO.builder()
-                    .id(alumno.getId())
-                    .nombre(alumno.getNombre())
-                    .apellidos(alumno.getApellidos())
-                    .detalleNotas(detalles)
-                    .media(mediaFinal)
-                    .build());
-        }
-
-        return respuesta;
+        return alumnos.stream()
+                .map(alumno -> evaluarAlumnoCompleto(alumno, criterios))
+                .toList();
     }
 
-    // Guardar o actualizar una nota
     @Transactional
     public void guardarNota(GuardarNotaRequest request) {
-        Optional<Calificacion> existente = calificacionRepository
-                .findByCriterioIdAndAlumnoId(request.getCriterioId(), request.getAlumnoId());
-
-        Calificacion calificacion;
-        if (existente.isPresent()) {
-            calificacion = existente.get();
-            calificacion.setNota(request.getNota());
-            calificacion.setComentarios(request.getComentarios());
-        } else {
-            CriterioEvaluacion criterio = criterioRepository.findById(request.getCriterioId())
-                    .orElseThrow(() -> new RuntimeException("Criterio no encontrado"));
-            Usuario alumno = usuarioRepository.findById(request.getAlumnoId())
-                    .orElseThrow(() -> new RuntimeException("Alumno no encontrado"));
-
-            calificacion = new Calificacion();
-            calificacion.setCriterio(criterio);
-            calificacion.setAlumno(alumno);
-            calificacion.setNota(request.getNota());
-            calificacion.setComentarios(request.getComentarios());
-        }
-
-        calificacionRepository.save(calificacion);
+        calificacionRepository.findByCriterioIdAndAlumnoId(request.getCriterioId(), request.getAlumnoId())
+                .ifPresentOrElse(
+                        calificacion -> actualizarCalificacionExistente(calificacion, request),
+                        () -> crearNuevaCalificacion(request)
+                );
     }
 
-    // 👇 NUEVO MÉTODO: Crear un criterio
     @Transactional
     public void crearCriterio(Long asignaturaId, Long cursoId, String nombre, BigDecimal peso) {
-        Asignatura asignatura = asignaturaRepository.findById(asignaturaId)
-                .orElseThrow(() -> new RuntimeException("Asignatura no encontrada"));
-        Curso curso = cursoRepository.findById(cursoId)
-                .orElseThrow(() -> new RuntimeException("Curso no encontrado"));
+        Asignatura asignatura = buscarAsignatura(asignaturaId);
+        Curso curso = buscarCurso(cursoId);
 
         CriterioEvaluacion nuevoCriterio = new CriterioEvaluacion();
         nuevoCriterio.setAsignatura(asignatura);
@@ -177,5 +74,124 @@ public class CalificacionService {
         nuevoCriterio.setPeso(peso);
 
         criterioRepository.save(nuevoCriterio);
+    }
+
+    // ============================================================
+    // MÉTODOS PRIVADOS (Cálculos y Validaciones)
+    // ============================================================
+
+    private ResumenAsignaturaAlumnoDTO procesarResumenAsignatura(Asignatura asignatura, Long cursoId, Long alumnoId) {
+        List<CriterioEvaluacion> criterios = criterioRepository.findByAsignaturaIdAndCursoId(asignatura.getId(), cursoId);
+
+        BigDecimal media = calcularMediaPonderada(criterios, alumnoId);
+
+        return ResumenAsignaturaAlumnoDTO.builder()
+                .asignaturaId(asignatura.getId())
+                .asignaturaNombre(asignatura.getNombre())
+                .notaMedia(media)
+                .cursoId(cursoId)
+                .build();
+    }
+
+    private AlumnoEvaluacionDTO evaluarAlumnoCompleto(Usuario alumno, List<CriterioEvaluacion> criterios) {
+        List<NotaDetalleDTO> detalles = new ArrayList<>();
+        BigDecimal sumaPonderada = BigDecimal.ZERO;
+        BigDecimal totalPesoEvaluado = BigDecimal.ZERO;
+
+        for (CriterioEvaluacion criterio : criterios) {
+            BigDecimal notaActual = obtenerNotaActual(criterio.getId(), alumno.getId());
+
+            detalles.add(NotaDetalleDTO.builder()
+                    .criterioId(criterio.getId())
+                    .nombreCriterio(criterio.getNombre())
+                    .peso(criterio.getPeso())
+                    .nota(notaActual)
+                    .build());
+
+            if (notaActual != null) {
+                sumaPonderada = sumaPonderada.add(notaActual.multiply(criterio.getPeso()));
+                totalPesoEvaluado = totalPesoEvaluado.add(criterio.getPeso());
+            }
+        }
+
+        return AlumnoEvaluacionDTO.builder()
+                .id(alumno.getId())
+                .nombre(alumno.getNombre())
+                .apellidos(alumno.getApellidos())
+                .detalleNotas(detalles)
+                .media(calcularMediaSegura(sumaPonderada, totalPesoEvaluado))
+                .build();
+    }
+
+    // 🧮 Motor Matemático Aislado
+    private BigDecimal calcularMediaPonderada(List<CriterioEvaluacion> criterios, Long alumnoId) {
+        BigDecimal sumaPonderada = BigDecimal.ZERO;
+        BigDecimal totalPesoEvaluado = BigDecimal.ZERO;
+
+        for (CriterioEvaluacion criterio : criterios) {
+            BigDecimal nota = obtenerNotaActual(criterio.getId(), alumnoId);
+            if (nota != null) {
+                sumaPonderada = sumaPonderada.add(nota.multiply(criterio.getPeso()));
+                totalPesoEvaluado = totalPesoEvaluado.add(criterio.getPeso());
+            }
+        }
+        return calcularMediaSegura(sumaPonderada, totalPesoEvaluado);
+    }
+
+    private BigDecimal calcularMediaSegura(BigDecimal sumaPonderada, BigDecimal totalPeso) {
+        if (totalPeso.compareTo(BigDecimal.ZERO) > 0) {
+            return sumaPonderada.divide(totalPeso, 2, RoundingMode.HALF_UP);
+        }
+        return BigDecimal.ZERO;
+    }
+
+    private BigDecimal obtenerNotaActual(Long criterioId, Long alumnoId) {
+        return calificacionRepository.findByCriterioIdAndAlumnoId(criterioId, alumnoId)
+                .map(Calificacion::getNota)
+                .orElse(null);
+    }
+
+    // 💾 Ayudantes de Guardado (ifPresentOrElse)
+    private void actualizarCalificacionExistente(Calificacion calificacion, GuardarNotaRequest request) {
+        calificacion.setNota(request.getNota());
+        calificacion.setComentarios(request.getComentarios());
+        calificacionRepository.save(calificacion);
+    }
+
+    private void crearNuevaCalificacion(GuardarNotaRequest request) {
+        CriterioEvaluacion criterio = criterioRepository.findById(request.getCriterioId())
+                .orElseThrow(() -> new ApiException("CRITERIO_NOT_FOUND", HttpStatus.NOT_FOUND));
+        Usuario alumno = buscarAlumno(request.getAlumnoId());
+
+        Calificacion nuevaCalificacion = new Calificacion();
+        nuevaCalificacion.setCriterio(criterio);
+        nuevaCalificacion.setAlumno(alumno);
+        nuevaCalificacion.setNota(request.getNota());
+        nuevaCalificacion.setComentarios(request.getComentarios());
+
+        calificacionRepository.save(nuevaCalificacion);
+    }
+
+    // 🔍 Buscadores y Helpers
+    private List<Asignatura> obtenerAsignaturasDelCurso(Long cursoId) {
+        return sesionClaseRepository.findByCursoId(cursoId).stream()
+                .map(SesionClase::getAsignatura)
+                .distinct()
+                .toList();
+    }
+
+    private Usuario buscarAlumno(Long alumnoId) {
+        return usuarioRepository.findById(alumnoId)
+                .orElseThrow(() -> new ApiException("ALUMNO_NOT_FOUND", HttpStatus.NOT_FOUND));
+    }
+
+    private Asignatura buscarAsignatura(Long asignaturaId) {
+        return asignaturaRepository.findById(asignaturaId)
+                .orElseThrow(() -> new ApiException("ASIGNATURA_NOT_FOUND", HttpStatus.NOT_FOUND));
+    }
+
+    private Curso buscarCurso(Long cursoId) {
+        return cursoRepository.findById(cursoId)
+                .orElseThrow(() -> new ApiException("CURSO_NOT_FOUND", HttpStatus.NOT_FOUND));
     }
 }

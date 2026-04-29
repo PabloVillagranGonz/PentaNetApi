@@ -10,7 +10,7 @@ import org.example.centrosnetapi.repositories.CentroRepository;
 import org.example.centrosnetapi.services.AuthService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.crypto.password.PasswordEncoder;
+
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,7 +23,6 @@ import java.util.stream.Collectors;
 public class AuthController {
 
     private final AuthService authService;
-    private final PasswordEncoder passwordEncoder;
     private final CentroRepository centroRepository;
 
     @PostMapping("/login")
@@ -48,8 +47,4 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/debug/hash")
-    public String hash(@RequestParam String raw) {
-        return passwordEncoder.encode(raw);
-    }
 }

@@ -1,6 +1,6 @@
 package org.example.centrosnetapi.services;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.example.centrosnetapi.dtos.AsignaturaCurso.*;
 import org.example.centrosnetapi.exceptions.ApiException;
@@ -21,29 +21,15 @@ public class AsignaturaCursoService {
     private final AsignaturaRepository asignaturaRepository;
 
     // ============================================================
-    // ASIGNAR
+    // MÉTODOS PÚBLICOS (Lógica de Negocio)
     // ============================================================
+
     public AsignaturaCursoResponseDTO asignar(AsignaturaCursoRequestDTO dto, Usuario adminLogueado) {
+        Curso curso = buscarCursoValidado(dto.getCursoId(), adminLogueado, "NO_PUEDES_MODIFICAR_CURSOS_DE_OTRO_CENTRO");
+        Asignatura asignatura = buscarAsignatura(dto.getAsignaturaId());
 
-        Curso curso = cursoRepository.findById(dto.getCursoId())
-                .orElseThrow(() -> new ApiException("CURSO_NOT_FOUND", HttpStatus.NOT_FOUND));
-
-        // 🔥 CANDADO SAAS: El curso debe pertenecer al centro del admin
-        if (adminLogueado.getCentro() != null && !adminLogueado.getCentro().getId().equals(curso.getCentro().getId())) {
-            throw new ApiException("NO_PUEDES_MODIFICAR_CURSOS_DE_OTRO_CENTRO", HttpStatus.FORBIDDEN);
-        }
-
-        Asignatura asignatura = asignaturaRepository.findById(dto.getAsignaturaId())
-                .orElseThrow(() -> new ApiException("ASIGNATURA_NOT_FOUND", HttpStatus.NOT_FOUND));
-
-        // Candado adicional: curso y asignatura deben ser del mismo centro
-        if (!curso.getCentro().getId().equals(asignatura.getCentro().getId())) {
-            throw new ApiException("CURSO_Y_ASIGNATURA_DEBEN_SER_DEL_MISMO_CENTRO", HttpStatus.BAD_REQUEST);
-        }
-
-        if (asignaturaCursoRepository.existsByCursoIdAndAsignaturaId(dto.getCursoId(), dto.getAsignaturaId())) {
-            throw new ApiException("ASIGNATURA_YA_ASIGNADA_AL_CURSO", HttpStatus.BAD_REQUEST);
-        }
+        validarCompatibilidadCentro(curso, asignatura);
+        validarNoDuplicado(dto.getCursoId(), dto.getAsignaturaId());
 
         AsignaturaCurso ac = AsignaturaCurso.builder()
                 .curso(curso)
@@ -54,37 +40,58 @@ public class AsignaturaCursoService {
         return toDTO(asignaturaCursoRepository.save(ac));
     }
 
-    // ============================================================
-    // OBTENER POR CURSO
-    // ============================================================
     public List<AsignaturaCursoResponseDTO> obtenerPorCurso(Long cursoId, Usuario usuarioLogueado) {
-
-        Curso curso = cursoRepository.findById(cursoId)
-                .orElseThrow(() -> new ApiException("CURSO_NOT_FOUND", HttpStatus.NOT_FOUND));
-
-        // 🔥 CANDADO SAAS
-        if (usuarioLogueado.getCentro() != null && !usuarioLogueado.getCentro().getId().equals(curso.getCentro().getId())) {
-            throw new ApiException("ACCESO_DENEGADO", HttpStatus.FORBIDDEN);
-        }
+        buscarCursoValidado(cursoId, usuarioLogueado, "ACCESO_DENEGADO");
 
         return asignaturaCursoRepository.findByCurso_Id(cursoId)
                 .stream().map(this::toDTO).toList();
     }
 
-    // ============================================================
-    // ELIMINAR
-    // ============================================================
     public void eliminar(Long id, Usuario adminLogueado) {
-
-        AsignaturaCurso ac = asignaturaCursoRepository.findById(id)
-                .orElseThrow(() -> new ApiException("ASIGNACION_NOT_FOUND", HttpStatus.NOT_FOUND));
-
-        // 🔥 CANDADO SAAS
-        if (adminLogueado.getCentro() != null && !adminLogueado.getCentro().getId().equals(ac.getCurso().getCentro().getId())) {
-            throw new ApiException("NO_PUEDES_ELIMINAR_ASIGNACIONES_DE_OTRO_CENTRO", HttpStatus.FORBIDDEN);
-        }
+        AsignaturaCurso ac = buscarAsignacion(id);
+        validarAccesoSaaS(adminLogueado, ac.getCurso().getCentro().getId(), "NO_PUEDES_ELIMINAR_ASIGNACIONES_DE_OTRO_CENTRO");
 
         asignaturaCursoRepository.deleteById(id);
+    }
+
+    // ============================================================
+    // MÉTODOS PRIVADOS (Validaciones y Buscadores)
+    // ============================================================
+
+    private Curso buscarCursoValidado(Long cursoId, Usuario usuario, String mensajeErrorSaaS) {
+        Curso curso = cursoRepository.findById(cursoId)
+                .orElseThrow(() -> new ApiException("CURSO_NOT_FOUND", HttpStatus.NOT_FOUND));
+
+        validarAccesoSaaS(usuario, curso.getCentro().getId(), mensajeErrorSaaS);
+        return curso;
+    }
+
+    private Asignatura buscarAsignatura(Long asignaturaId) {
+        return asignaturaRepository.findById(asignaturaId)
+                .orElseThrow(() -> new ApiException("ASIGNATURA_NOT_FOUND", HttpStatus.NOT_FOUND));
+    }
+
+    private AsignaturaCurso buscarAsignacion(Long id) {
+        return asignaturaCursoRepository.findById(id)
+                .orElseThrow(() -> new ApiException("ASIGNACION_NOT_FOUND", HttpStatus.NOT_FOUND));
+    }
+
+    private void validarAccesoSaaS(Usuario usuario, Long centroIdObjetivo, String mensajeError) {
+        if (usuario.getCentro() != null && !usuario.getCentro().getId().equals(centroIdObjetivo)) {
+            throw new ApiException(mensajeError, HttpStatus.FORBIDDEN);
+        }
+    }
+
+    private void validarCompatibilidadCentro(Curso curso, Asignatura asignatura) {
+        if (!curso.getCentro().getId().equals(asignatura.getCentro().getId())) {
+            throw new ApiException("CURSO_Y_ASIGNATURA_DEBEN_SER_DEL_MISMO_CENTRO", HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    private void validarNoDuplicado(Long cursoId, Long asignaturaId) {
+        if (asignaturaCursoRepository.existsByCursoIdAndAsignaturaId(cursoId, asignaturaId)) {
+            throw new ApiException("ASIGNATURA_YA_ASIGNADA_AL_CURSO", HttpStatus.BAD_REQUEST);
+        }
     }
 
     // ============================================================

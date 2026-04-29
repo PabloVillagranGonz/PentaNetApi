@@ -1,6 +1,5 @@
 package org.example.centrosnetapi.services;
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.example.centrosnetapi.dtos.Correo.CorreoResponseDTO;
 import org.example.centrosnetapi.dtos.Correo.SendCorreoRequestDTO;
@@ -10,8 +9,10 @@ import org.example.centrosnetapi.models.*;
 import org.example.centrosnetapi.repositories.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -27,71 +28,51 @@ public class CorreoService {
     private final GrupoMensajesRepository grupoMensajesRepository;
 
     // ============================================================
-    // 📥 INBOX
+    // 📥 LECTURA DE BANDEJAS
     // ============================================================
 
     public List<CorreoResponseDTO> getInbox(Usuario usuario) {
-
-        return usuarioMensajeRepository
-                .findInboxByUsuarioId(usuario.getId())
+        return usuarioMensajeRepository.findInboxByUsuarioId(usuario.getId())
                 .stream()
                 .map(this::toDTO)
                 .toList();
     }
 
-    // ============================================================
-    // 📤 ENVIADOS
-    // ============================================================
-
     public List<CorreoResponseDTO> getSent(Usuario usuario) {
-
-        return mensajesRepository
-                .findByRemitenteId(usuario.getId())
+        return mensajesRepository.findByRemitenteId(usuario.getId())
                 .stream()
                 .map(this::toDTOFromMensaje)
                 .toList();
     }
 
-    // ============================================================
-    // ✅ MARCAR COMO LEÍDO
-    // ============================================================
-
-    public void markAsRead(Long mensajeId, Usuario usuario) {
-
-        UsuarioMensaje estado = usuarioMensajeRepository
-                .findByMensajeIdAndUsuarioId(mensajeId, usuario.getId())
-                .orElseThrow(() ->
-                        new ApiException("MENSAJE_NOT_FOUND", HttpStatus.NOT_FOUND)
-                );
-
-        estado.setLeido(true);
+    public long countUnread(Usuario usuario) {
+        return usuarioMensajeRepository.countUnreadByUsuarioId(usuario.getId());
     }
 
     // ============================================================
-    // 🗑️ BORRAR PARA USUARIO
+    // ✅ ACCIONES DE ESTADO
     // ============================================================
 
+    public void markAsRead(Long mensajeId, Usuario usuario) {
+        UsuarioMensaje estado = buscarEstadoMensajeUsuario(mensajeId, usuario.getId());
+        estado.setLeido(true);
+    }
+
     public void deleteForUser(Long mensajeId, Usuario usuario) {
-
-        UsuarioMensaje estado = usuarioMensajeRepository
-                .findByMensajeIdAndUsuarioId(mensajeId, usuario.getId())
-                .orElseThrow(() ->
-                        new ApiException("MENSAJE_NOT_FOUND", HttpStatus.NOT_FOUND)
-                );
-
+        UsuarioMensaje estado = buscarEstadoMensajeUsuario(mensajeId, usuario.getId());
         estado.setEliminado(true);
     }
 
     // ============================================================
-    // ✉️ ENVÍO INDIVIDUAL
+    // ✉️ ENVÍO DE MENSAJES
     // ============================================================
 
     public void sendCorreo(Usuario emisor, SendCorreoRequestDTO dto) {
-
         Usuario destinatario = usuarioRepository.findById(dto.getDestinatarioId())
-                .orElseThrow(() ->
-                        new ApiException("DESTINATARIO_NOT_FOUND", HttpStatus.NOT_FOUND)
-                );
+                .orElseThrow(() -> new ApiException("DESTINATARIO_NOT_FOUND", HttpStatus.NOT_FOUND));
+
+        // 🔥 CANDADO SAAS: Evitar que hablen con usuarios de otros centros
+        validarMismoCentro(emisor, destinatario);
 
         Mensaje mensaje = Mensaje.builder()
                 .remitente(emisor)
@@ -103,151 +84,110 @@ public class CorreoService {
 
         mensajesRepository.save(mensaje);
 
-        crearEstadoMensaje(mensaje, destinatario, false);
-        crearEstadoMensaje(mensaje, emisor, true);
+        // Guardamos los estados en bloque
+        usuarioMensajeRepository.saveAll(List.of(
+                construirEstado(mensaje, destinatario, false),
+                construirEstado(mensaje, emisor, true)
+        ));
     }
 
-    // ============================================================
-    // 👥 ENVÍO A GRUPO (POR ASIGNATURA)
-    // ============================================================
+    public void sendToGroup(SendGroupCorreoRequestDTO dto, Usuario emisor) {
+        Asignatura asignatura = buscarAsignatura(dto.getAsignaturaId());
+        Curso curso = buscarCursoDeAsignatura(asignatura.getId());
 
-    public void sendToGroup(SendGroupCorreoRequestDTO dto,
-                            Usuario emisor) {
+        GrupoMensajes grupo = grupoMensajesRepository.save(
+                GrupoMensajes.builder().asignatura(asignatura).creadoPor(emisor).build()
+        );
 
-        Asignatura asignatura = asignaturaRepository
-                .findById(dto.getAsignaturaId())
-                .orElseThrow(() ->
-                        new ApiException("ASIGNATURA_NOT_FOUND", HttpStatus.NOT_FOUND)
-                );
+        Mensaje mensaje = mensajesRepository.save(
+                Mensaje.builder()
+                        .remitente(emisor)
+                        .grupo(grupo)
+                        .asunto(dto.getAsunto())
+                        .cuerpo(dto.getCuerpo())
+                        .fechaEnvio(LocalDateTime.now())
+                        .build()
+        );
 
-        // Obtener curso asociado a la asignatura
-        Curso curso = cursoRepository
-                .findFirstByAsignaturasId(asignatura.getId())
-                .orElseThrow(() ->
-                        new ApiException("ASIGNATURA_SIN_CURSO", HttpStatus.BAD_REQUEST)
-                );
-
-        GrupoMensajes grupo = GrupoMensajes.builder()
-                .asignatura(asignatura)
-                .creadoPor(emisor)
-                .build();
-
-        grupoMensajesRepository.save(grupo);
-
-        Mensaje mensaje = Mensaje.builder()
-                .remitente(emisor)
-                .grupo(grupo)
-                .asunto(dto.getAsunto())
-                .cuerpo(dto.getCuerpo())
-                .build();
-
-        mensajesRepository.save(mensaje);
-
-        // Buscar alumnos del curso
-        List<Usuario> alumnos =
-                usuarioRepository.findByCurso_IdAndRol(
-                        curso.getId(),
-                        Rol.ALUMNO
-                );
+        List<Usuario> alumnos = usuarioRepository.findByCurso_IdAndRol(curso.getId(), Rol.ALUMNO);
+        List<UsuarioMensaje> estadosAGuardar = new ArrayList<>();
 
         for (Usuario alumno : alumnos) {
-
             if (!alumno.getId().equals(emisor.getId())) {
-
-                crearEstadoMensaje(mensaje, alumno, false);
+                estadosAGuardar.add(construirEstado(mensaje, alumno, false));
             }
         }
+        estadosAGuardar.add(construirEstado(mensaje, emisor, true));
 
-        crearEstadoMensaje(mensaje, emisor, true);
+        // 🔥 OPTIMIZACIÓN: 1 sola consulta a BD para todos los alumnos en vez de N consultas
+        usuarioMensajeRepository.saveAll(estadosAGuardar);
     }
 
     // ============================================================
-    // 🛠 MÉTODOS PRIVADOS
+    // 🛠 MÉTODOS PRIVADOS (Buscadores y Validadores)
     // ============================================================
 
-    private void crearEstadoMensaje(Mensaje mensaje,
-                                    Usuario usuario,
-                                    boolean leido) {
+    private UsuarioMensaje buscarEstadoMensajeUsuario(Long mensajeId, Long usuarioId) {
+        return usuarioMensajeRepository.findByMensajeIdAndUsuarioId(mensajeId, usuarioId)
+                .orElseThrow(() -> new ApiException("MENSAJE_NOT_FOUND", HttpStatus.NOT_FOUND));
+    }
 
-        UsuarioMensaje estado = UsuarioMensaje.builder()
+    private Asignatura buscarAsignatura(Long asignaturaId) {
+        return asignaturaRepository.findById(asignaturaId)
+                .orElseThrow(() -> new ApiException("ASIGNATURA_NOT_FOUND", HttpStatus.NOT_FOUND));
+    }
+
+    private Curso buscarCursoDeAsignatura(Long asignaturaId) {
+        return cursoRepository.findFirstByAsignaturasId(asignaturaId)
+                .orElseThrow(() -> new ApiException("ASIGNATURA_SIN_CURSO", HttpStatus.BAD_REQUEST));
+    }
+
+    private void validarMismoCentro(Usuario emisor, Usuario destinatario) {
+        if (emisor.getCentro() != null && destinatario.getCentro() != null &&
+                !emisor.getCentro().getId().equals(destinatario.getCentro().getId())) {
+            throw new ApiException("USUARIOS_DE_DISTINTOS_CENTROS", HttpStatus.FORBIDDEN);
+        }
+    }
+
+    private UsuarioMensaje construirEstado(Mensaje mensaje, Usuario usuario, boolean leido) {
+        return UsuarioMensaje.builder()
                 .mensaje(mensaje)
                 .usuario(usuario)
                 .leido(leido)
                 .eliminado(false)
                 .archivado(false)
                 .build();
-
-        usuarioMensajeRepository.save(estado);
     }
 
+    // ============================================================
+    // 🗺 MAPPERS
+    // ============================================================
+
     private CorreoResponseDTO toDTO(UsuarioMensaje um) {
-
         Mensaje m = um.getMensaje();
-
-        return CorreoResponseDTO.builder()
-                .id(m.getId())
-                .asunto(m.getAsunto())
-                .cuerpo(m.getCuerpo())
-
-                .emisorId(m.getRemitente().getId())
-                .emisorNombre(
-                        m.getRemitente().getNombre() + " " +
-                                m.getRemitente().getApellidos()
-                )
-
-                .destinatarioId(
-                        m.getDestinatario() != null
-                                ? m.getDestinatario().getId()
-                                : null
-                )
-
-                .destinatarioNombre(
-                        m.getDestinatario() != null
-                                ? m.getDestinatario().getNombre() + " " +
-                                m.getDestinatario().getApellidos()
-                                : "Grupo"
-                )
-
+        return construirDTOBase(m)
                 .leido(um.getLeido())
                 .archivado(um.getArchivado())
-                .fechaEnvio(m.getFechaEnvio())
                 .build();
     }
 
     private CorreoResponseDTO toDTOFromMensaje(Mensaje m) {
+        return construirDTOBase(m).build();
+    }
 
+    private CorreoResponseDTO.CorreoResponseDTOBuilder construirDTOBase(Mensaje m) {
         return CorreoResponseDTO.builder()
                 .id(m.getId())
                 .asunto(m.getAsunto())
                 .cuerpo(m.getCuerpo())
-
                 .emisorId(m.getRemitente().getId())
-                .emisorNombre(
-                        m.getRemitente().getNombre() + " " +
-                                m.getRemitente().getApellidos()
-                )
-
-                .destinatarioId(
-                        m.getDestinatario() != null
-                                ? m.getDestinatario().getId()
-                                : null
-                )
-
-                .destinatarioNombre(
-                        m.getDestinatario() != null
-                                ? m.getDestinatario().getNombre() + " " +
-                                m.getDestinatario().getApellidos()
-                                : "Grupo"
-                )
-
-                .fechaEnvio(m.getFechaEnvio())
-                .build();
+                .emisorNombre(obtenerNombreCompleto(m.getRemitente()))
+                .destinatarioId(m.getDestinatario() != null ? m.getDestinatario().getId() : null)
+                .destinatarioNombre(m.getDestinatario() != null ? obtenerNombreCompleto(m.getDestinatario()) : "Grupo")
+                .fechaEnvio(m.getFechaEnvio());
     }
 
-    public long countUnread(Usuario usuario) {
-
-        return usuarioMensajeRepository.countUnreadByUsuarioId(
-                usuario.getId()
-        );
+    private String obtenerNombreCompleto(Usuario u) {
+        return u.getNombre() + " " + u.getApellidos();
     }
 }

@@ -1,8 +1,8 @@
 package org.example.centrosnetapi.services;
 
-
 import lombok.RequiredArgsConstructor;
 import org.example.centrosnetapi.dtos.Instrumento.InstrumentResponseDTO;
+import org.example.centrosnetapi.models.Instrumento;
 import org.example.centrosnetapi.repositories.InstrumentoRepository;
 import org.springframework.stereotype.Service;
 
@@ -14,14 +14,25 @@ public class InstrumentService {
 
     private final InstrumentoRepository instrumentRepository;
 
+    // ============================================================
+    // MÉTODOS PÚBLICOS
+    // ============================================================
+
     public List<InstrumentResponseDTO> findAll() {
         return instrumentRepository.findAll()
                 .stream()
-                .map(i -> InstrumentResponseDTO.builder()
-                        .id(i.getId())
-                        .name(i.getNombre())
-                        .build()
-                )
+                .map(this::toDTO)
                 .toList();
+    }
+
+    // ============================================================
+    // MAPPER
+    // ============================================================
+
+    private InstrumentResponseDTO toDTO(Instrumento i) {
+        return InstrumentResponseDTO.builder()
+                .id(i.getId())
+                .name(i.getNombre())
+                .build();
     }
 }

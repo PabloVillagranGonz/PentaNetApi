@@ -32,12 +32,15 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     @Query("""
         SELECT u FROM Usuario u
         WHERE 
-            CAST(u.id as string) LIKE %:query%
-            OR LOWER(u.nombre) LIKE LOWER(CONCAT('%', :query, '%'))
-            OR LOWER(u.apellidos) LIKE LOWER(CONCAT('%', :query, '%'))
-            OR LOWER(u.email) LIKE LOWER(CONCAT('%', :query, '%'))
+            (:centroId IS NULL OR u.centro.id = :centroId)
+            AND (
+                CAST(u.id as string) LIKE %:query%
+                OR LOWER(u.nombre) LIKE LOWER(CONCAT('%', :query, '%'))
+                OR LOWER(u.apellidos) LIKE LOWER(CONCAT('%', :query, '%'))
+                OR LOWER(u.email) LIKE LOWER(CONCAT('%', :query, '%'))
+            )
     """)
-    List<Usuario> buscarPorTexto(@Param("query") String query);
+    List<Usuario> buscarPorTexto(@Param("query") String query, @Param("centroId") Long centroId);
 
     List<Usuario> findByCentroId(Long centroId);
 

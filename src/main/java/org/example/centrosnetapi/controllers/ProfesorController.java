@@ -1,6 +1,7 @@
 package org.example.centrosnetapi.controllers;
 
 import lombok.RequiredArgsConstructor;
+import org.example.centrosnetapi.dtos.SesionClase.SesionClaseResponseDTO;
 import org.example.centrosnetapi.dtos.Usuario.TeacherResponseDTO;
 import org.example.centrosnetapi.dtos.Usuario.UserResponseDTO;
 import org.example.centrosnetapi.models.Usuario;
@@ -83,6 +84,19 @@ public class ProfesorController {
             @AuthenticationPrincipal Usuario usuarioLogueado
     ) {
         return teacherService.getStudentsForTeacher(id, usuarioLogueado);
+    }
+
+    // =============================
+    // HORARIO (SESIONES) DEL PROFESOR
+    // =============================
+    @GetMapping("/{id}/schedule")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SECRETARIA', 'PROFESOR')")
+    public List<SesionClaseResponseDTO> getTeacherSchedule(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Usuario usuarioLogueado
+    ) {
+        // Llamamos al servicio para obtener las sesiones
+        return teacherService.findScheduleByTeacherId(id);
     }
 
     private TeacherResponseDTO toDTO(Usuario u) {

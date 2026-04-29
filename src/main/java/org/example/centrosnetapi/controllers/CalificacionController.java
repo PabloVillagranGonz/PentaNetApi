@@ -45,20 +45,6 @@ public class CalificacionController {
         }
     }
 
-    @GetMapping("/profesor/{profesorId}/asignaturas")
-    public ResponseEntity<List<AsignaturaProfesorDTO>> obtenerAsignaturasProfesor(@PathVariable Long profesorId) {
-        List<SesionClase> sesiones = sesionClaseRepository.findByProfesorId(profesorId);
-        List<AsignaturaProfesorDTO> respuesta = sesiones.stream().map(s ->
-                AsignaturaProfesorDTO.builder()
-                        .id(s.getAsignatura().getId())
-                        .nombre(s.getAsignatura().getNombre())
-                        .cursoId(s.getCurso().getId())
-                        .cursoNombre(s.getCurso().getNombre())
-                        .build()
-        ).distinct().toList();
-        return ResponseEntity.ok(respuesta);
-    }
-
     // 👇 NUEVO ENDPOINT
     @PostMapping("/criterio")
     public ResponseEntity<String> crearCriterio(@RequestBody CrearCriterioRequest request) {

@@ -21,18 +21,12 @@ public class CentroService {
     private final CentroRepository centroRepository;
 
     // ============================================================
-    // CREATE
+    // MÉTODOS PÚBLICOS (Lógica de Negocio)
     // ============================================================
+
     public CenterResponseDTO create(CenterRequestDTO dto, Usuario adminLogueado) {
-
-        // 🔥 CANDADO SAAS: Solo el Super Admin (centro = null) puede crear un conservatorio nuevo
-        if (adminLogueado.getCentro() != null) {
-            throw new ApiException("SOLO_SUPERADMIN_PUEDE_CREAR_CENTROS", HttpStatus.FORBIDDEN);
-        }
-
-        if (dto.getEmail() != null && centroRepository.existsByEmail(dto.getEmail())) {
-            throw new ApiException("EMAIL_ALREADY_EXISTS", HttpStatus.BAD_REQUEST);
-        }
+        validarSuperAdmin(adminLogueado, "SOLO_SUPERADMIN_PUEDE_CREAR_CENTROS");
+        validarEmailUnico(dto.getEmail(), null);
 
         Centro centro = Centro.builder()
                 .nombre(dto.getNombre())
@@ -48,55 +42,28 @@ public class CentroService {
         return toDTO(centroRepository.save(centro));
     }
 
-    // ============================================================
-    // READ ALL
-    // ============================================================
     public List<CenterResponseDTO> findAll(Usuario adminLogueado) {
-
-        // 🔥 CANDADO SAAS: Si un admin local intenta listar los centros, le devolvemos solo el suyo
+        // 🔥 CANDADO SAAS: Si es admin local, solo ve el suyo
         if (adminLogueado.getCentro() != null) {
             return List.of(toDTO(adminLogueado.getCentro()));
         }
 
-        // Si es Super Admin, ve toda la lista
-        return centroRepository.findAll()
-                .stream()
+        return centroRepository.findAll().stream()
                 .map(this::toDTO)
                 .toList();
     }
 
-    // ============================================================
-    // READ BY ID
-    // ============================================================
     public CenterResponseDTO findById(Long id, Usuario adminLogueado) {
-
-        // 🔥 CANDADO SAAS: No puede cotillear la info privada de otro centro
-        if (adminLogueado.getCentro() != null && !adminLogueado.getCentro().getId().equals(id)) {
-            throw new ApiException("ACCESO_DENEGADO", HttpStatus.FORBIDDEN);
-        }
-
-        Centro centro = centroRepository.findById(id)
-                .orElseThrow(() -> new ApiException("CENTRO_NOT_FOUND", HttpStatus.NOT_FOUND));
+        validarAccesoAlCentro(adminLogueado, id, "ACCESO_DENEGADO");
+        Centro centro = buscarCentro(id);
 
         return toDTO(centro);
     }
 
-    // ============================================================
-    // UPDATE
-    // ============================================================
     public CenterResponseDTO update(Long id, CenterRequestDTO dto, Usuario adminLogueado) {
-
-        // 🔥 CANDADO SAAS: Solo puede editar la info de SU centro
-        if (adminLogueado.getCentro() != null && !adminLogueado.getCentro().getId().equals(id)) {
-            throw new ApiException("NO_PUEDES_EDITAR_OTRO_CENTRO", HttpStatus.FORBIDDEN);
-        }
-
-        Centro centro = centroRepository.findById(id)
-                .orElseThrow(() -> new ApiException("CENTRO_NOT_FOUND", HttpStatus.NOT_FOUND));
-
-        if (dto.getEmail() != null && centroRepository.existsByEmailAndIdNot(dto.getEmail(), id)) {
-            throw new ApiException("EMAIL_ALREADY_EXISTS", HttpStatus.BAD_REQUEST);
-        }
+        validarAccesoAlCentro(adminLogueado, id, "NO_PUEDES_EDITAR_OTRO_CENTRO");
+        Centro centro = buscarCentro(id);
+        validarEmailUnico(dto.getEmail(), id);
 
         centro.setNombre(dto.getNombre());
         centro.setTelefono(dto.getTelefono());
@@ -110,21 +77,44 @@ public class CentroService {
         return toDTO(centroRepository.save(centro));
     }
 
-    // ============================================================
-    // DELETE
-    // ============================================================
     public void delete(Long id, Usuario adminLogueado) {
+        validarSuperAdmin(adminLogueado, "SOLO_SUPERADMIN_PUEDE_BORRAR_CENTROS");
+        Centro centro = buscarCentro(id); // Reutilizamos el buscador para asegurar que existe
 
-        // 🔥 CANDADO SAAS: Un admin no puede borrar un conservatorio entero. Solo Super Admin.
-        if (adminLogueado.getCentro() != null) {
-            throw new ApiException("SOLO_SUPERADMIN_PUEDE_BORRAR_CENTROS", HttpStatus.FORBIDDEN);
+        centroRepository.delete(centro);
+    }
+
+    // ============================================================
+    // MÉTODOS PRIVADOS (Validaciones y Buscadores)
+    // ============================================================
+
+    private Centro buscarCentro(Long id) {
+        return centroRepository.findById(id)
+                .orElseThrow(() -> new ApiException("CENTRO_NOT_FOUND", HttpStatus.NOT_FOUND));
+    }
+
+    private void validarSuperAdmin(Usuario usuario, String mensajeError) {
+        if (usuario.getCentro() != null) {
+            throw new ApiException(mensajeError, HttpStatus.FORBIDDEN);
         }
+    }
 
-        if (!centroRepository.existsById(id)) {
-            throw new ApiException("CENTRO_NOT_FOUND", HttpStatus.NOT_FOUND);
+    private void validarAccesoAlCentro(Usuario usuario, Long centroIdObjetivo, String mensajeError) {
+        if (usuario.getCentro() != null && !usuario.getCentro().getId().equals(centroIdObjetivo)) {
+            throw new ApiException(mensajeError, HttpStatus.FORBIDDEN);
         }
+    }
 
-        centroRepository.deleteById(id);
+    private void validarEmailUnico(String email, Long idExcluido) {
+        if (email == null) return; // Si no hay email, no validamos duplicados
+
+        boolean existe = (idExcluido == null)
+                ? centroRepository.existsByEmail(email)
+                : centroRepository.existsByEmailAndIdNot(email, idExcluido);
+
+        if (existe) {
+            throw new ApiException("EMAIL_ALREADY_EXISTS", HttpStatus.BAD_REQUEST);
+        }
     }
 
     // ============================================================

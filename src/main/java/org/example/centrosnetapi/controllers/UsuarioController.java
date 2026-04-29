@@ -8,7 +8,7 @@ import org.example.centrosnetapi.models.Usuario;
 import org.example.centrosnetapi.repositories.UsuarioRepository;
 import org.example.centrosnetapi.services.UsuarioService;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.annotation.AuthenticationPrincipal; // 🔥 Importante
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -16,7 +16,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
-@CrossOrigin
 public class UsuarioController {
 
     private final UsuarioService userService;
@@ -64,54 +63,41 @@ public class UsuarioController {
             @RequestParam String query,
             @AuthenticationPrincipal Usuario adminLogueado
     ) {
-        // Filtramos la búsqueda por el centro del admin logueado
-        return usuarioRepository.buscarPorTexto(query)
-                .stream()
-                .filter(u -> adminLogueado.getCentro() == null ||
-                        (u.getCentro() != null && u.getCentro().getId().equals(adminLogueado.getCentro().getId())))
-                .map(this::toDTO)
-                .toList();
+        Long centroId = adminLogueado.getCentro() != null ? adminLogueado.getCentro().getId() : null;
+        return userService.buscarPorTexto(query, centroId);
     }
 
     // ================= OTROS GETTERS =================
 
     @GetMapping("/{id}")
-    public UserResponseDTO getById(@PathVariable Long id) {
+    public UserResponseDTO getById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Usuario adminLogueado
+    ) {
         return userService.findById(id);
     }
 
     @GetMapping("/teachers/center/{centerId}")
-    public List<UserResponseDTO> getTeachersByCenter(@PathVariable Long centerId) {
+    public List<UserResponseDTO> getTeachersByCenter(
+            @PathVariable Long centerId,
+            @AuthenticationPrincipal Usuario adminLogueado
+    ) {
         return userService.findTeachersByCenter(centerId);
     }
 
     @GetMapping("/course/{id}/students")
-    public List<UserResponseDTO> getStudentsByCourse(@PathVariable Long id) {
+    public List<UserResponseDTO> getStudentsByCourse(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Usuario adminLogueado
+    ) {
         return userService.findStudentsForCourse(id);
     }
 
     @GetMapping("/centro/{centroId}")
-    public List<UserResponseDTO> getUsersByCenter(@PathVariable Long centroId) {
+    public List<UserResponseDTO> getUsersByCenter(
+            @PathVariable Long centroId,
+            @AuthenticationPrincipal Usuario adminLogueado
+    ) {
         return userService.findUsersByCenter(centroId);
-    }
-
-    // ================= MAPPER INTERNO =================
-
-    private UserResponseDTO toDTO(Usuario u) {
-        return UserResponseDTO.builder()
-                .id(u.getId())
-                .nombre(u.getNombre())
-                .apellidos(u.getApellidos())
-                .email(u.getEmail())
-                .rol(u.getRol())
-                .telefono(u.getTelefono())
-                .dni(u.getDni())
-                .centroId(u.getCentro() != null ? u.getCentro().getId() : null)
-                .centroNombre(u.getCentro() != null ? u.getCentro().getNombre() : null)
-                .cursoId(u.getCurso() != null ? u.getCurso().getId() : null)
-                .cursoNombre(u.getCurso() != null ? u.getCurso().getNombre() : null)
-                .instrumentoId(u.getInstrumento() != null ? u.getInstrumento().getId() : null)
-                .instrumentoNombre(u.getInstrumento() != null ? u.getInstrumento().getNombre() : null)
-                .build();
     }
 }
