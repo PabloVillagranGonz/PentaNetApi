@@ -31,7 +31,7 @@ public class SwaggerConfig {
                                 )
                 )
                 .info(new Info()
-                        .title("CentrosNet")
+                        .title("PentaNet")
                         .description("Proyecto Api y App")
                         .contact(new Contact()
                                 .name("Pablo")

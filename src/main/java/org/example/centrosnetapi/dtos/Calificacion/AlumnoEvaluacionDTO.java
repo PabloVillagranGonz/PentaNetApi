@@ -17,4 +17,5 @@ public class AlumnoEvaluacionDTO {
     private String apellidos;
     private List<NotaDetalleDTO> detalleNotas;
     private BigDecimal media;
+    private Boolean publicadas;
 }

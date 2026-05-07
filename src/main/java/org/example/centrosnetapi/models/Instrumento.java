@@ -2,10 +2,14 @@ package org.example.centrosnetapi.models;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(name = "instrumentos")
 @Getter
 @Setter
@@ -23,9 +27,11 @@ public class Instrumento {
     @Column(nullable = false, unique = true)
     private String nombre;
 
-    @Column(name = "creado_en", insertable = false, updatable = false)
+    @CreatedDate
+    @Column(name = "creado_en", updatable = false)
     private LocalDateTime creadoEn;
 
-    @Column(name = "actualizado_en", insertable = false)
+    @LastModifiedDate
+    @Column(name = "actualizado_en")
     private LocalDateTime actualizadoEn;
 }

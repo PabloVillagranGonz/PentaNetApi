@@ -1,5 +1,6 @@
 package org.example.centrosnetapi.controllers;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.centrosnetapi.models.Usuario;
 import org.example.centrosnetapi.services.AsignaturaCursoService;
@@ -20,7 +21,7 @@ public class AsignaturaCursoController {
 
     @PostMapping
     public AsignaturaCursoResponseDTO asignar(
-            @RequestBody AsignaturaCursoRequestDTO dto,
+            @Valid @RequestBody AsignaturaCursoRequestDTO dto,
             @AuthenticationPrincipal Usuario adminLogueado
     ) {
         return asignaturaCursoService.asignar(dto, adminLogueado);

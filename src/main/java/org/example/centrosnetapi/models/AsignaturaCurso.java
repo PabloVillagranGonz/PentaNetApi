@@ -6,12 +6,9 @@ import lombok.*;
 import java.math.BigDecimal;
 
 @Entity
-@Table(
-        name = "asignaturas_cursos",
-        uniqueConstraints = {
-                @UniqueConstraint(columnNames = {"curso_id", "asignatura_id"})
-        }
-)
+@Table(name = "asignaturas_cursos", uniqueConstraints = {
+                @UniqueConstraint(columnNames = { "curso_id", "asignatura_id" })
+})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -19,22 +16,26 @@ import java.math.BigDecimal;
 @Builder
 public class AsignaturaCurso {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+        @Id
+        @GeneratedValue(strategy = GenerationType.IDENTITY)
+        private Long id;
 
-    // ================= RELACIONES =================
+        // ================= RELACIONES =================
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "curso_id", nullable = false)
-    private Curso curso;
+        @ManyToOne(fetch = FetchType.LAZY, optional = false)
+        @JoinColumn(name = "curso_id", nullable = false)
+        private Curso curso;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "asignatura_id", nullable = false)
-    private Asignatura asignatura;
+        @ManyToOne(fetch = FetchType.LAZY, optional = false)
+        @JoinColumn(name = "asignatura_id", nullable = false)
+        private Asignatura asignatura;
 
-    // ================= DATOS EXTRA =================
+        // ================= DATOS EXTRA =================
 
-    @Column(name = "horas_semanales", precision = 5, scale = 2)
-    private BigDecimal horasSemanales = BigDecimal.ZERO;
+        @Column(name = "horas_semanales", precision = 5, scale = 2)
+        private BigDecimal horasSemanales = BigDecimal.ZERO;
+
+        @Column(name = "notas_publicadas", nullable = false)
+        @Builder.Default
+        private Boolean notasPublicadas = false;
 }

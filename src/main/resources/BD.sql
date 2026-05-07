@@ -21,6 +21,7 @@ CREATE TABLE centros (
                          direccion VARCHAR(255),
                          codigo_postal VARCHAR(20),
                          ciudad VARCHAR(100),
+                         activo TINYINT(1) DEFAULT 1,
                          creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                          actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
@@ -40,6 +41,7 @@ CREATE TABLE cursos (
                         nombre VARCHAR(100) NOT NULL,
                         anio INT,
                         notas VARCHAR(255),
+                        activo TINYINT(1) DEFAULT 1,
                         creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                         KEY idx_cursos_anio (anio),
@@ -49,7 +51,7 @@ CREATE TABLE cursos (
 -- 4. USUARIOS
 CREATE TABLE usuarios (
                           id BIGINT AUTO_INCREMENT PRIMARY KEY,
-                          centro_id BIGINT NOT NULL,
+                          centro_id BIGINT NULL,
                           instrumento_id BIGINT NULL,
                           curso_id BIGINT NULL,
                           nombre VARCHAR(100) NOT NULL,
@@ -75,12 +77,13 @@ CREATE TABLE usuarios (
 ) ENGINE=InnoDB;
 
 -- 5. ESPACIOS
-CREATE TABLE espacio (
+CREATE TABLE espacios (
                          id BIGINT AUTO_INCREMENT PRIMARY KEY,
                          centro_id BIGINT NOT NULL,
                          nombre VARCHAR(50) NOT NULL,
                          tipo ENUM('AULA', 'CABINA', 'AUDITORIO', 'OTROS') NOT NULL,
                          capacidad INT DEFAULT 1,
+                         activo TINYINT(1) DEFAULT 1,
                          creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                          actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                          UNIQUE KEY unique_espacio_centro (centro_id, nombre),
@@ -97,6 +100,7 @@ CREATE TABLE asignaturas (
                              descripcion TEXT,
                              duracion_minutos INT DEFAULT 60,
                              tipo ENUM('COLECTIVA','INDIVIDUAL') NOT NULL,
+                             activo TINYINT(1) DEFAULT 1,
                              creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                              actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                              KEY idx_asignaturas_tipo (tipo),
@@ -109,6 +113,7 @@ CREATE TABLE asignaturas_cursos (
                                     curso_id BIGINT NOT NULL,
                                     asignatura_id BIGINT NOT NULL,
                                     horas_semanales DECIMAL(5,2) DEFAULT 0.00,
+                                    notas_publicadas TINYINT(1) DEFAULT 0,
                                     UNIQUE KEY unique_asig_curso (curso_id, asignatura_id),
                                     CONSTRAINT fk_ac_curso FOREIGN KEY (curso_id) REFERENCES cursos(id) ON DELETE CASCADE,
                                     CONSTRAINT fk_ac_asignatura FOREIGN KEY (asignatura_id) REFERENCES asignaturas(id) ON DELETE CASCADE
@@ -154,7 +159,7 @@ CREATE TABLE sesiones_clase (
                                 CONSTRAINT fk_sc_profesor FOREIGN KEY (profesor_id) REFERENCES usuarios(id) ON DELETE RESTRICT,
                                 CONSTRAINT fk_sc_curso FOREIGN KEY (curso_id) REFERENCES cursos(id) ON DELETE CASCADE,
                                 CONSTRAINT fk_sc_alumno FOREIGN KEY (alumno_id) REFERENCES usuarios(id) ON DELETE CASCADE,
-                                CONSTRAINT fk_sc_espacio FOREIGN KEY (espacio_id) REFERENCES espacio(id) ON DELETE RESTRICT
+                                CONSTRAINT fk_sc_espacio FOREIGN KEY (espacio_id) REFERENCES espacios(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
 -- 10. RESERVAS
@@ -173,7 +178,7 @@ CREATE TABLE reservas (
                           KEY idx_res_espacio_fecha (espacio_id, inicio, fin),
                           CONSTRAINT fk_res_centro FOREIGN KEY (centro_id) REFERENCES centros(id) ON DELETE CASCADE,
                           CONSTRAINT fk_res_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE RESTRICT,
-                          CONSTRAINT fk_res_espacio FOREIGN KEY (espacio_id) REFERENCES espacio(id) ON DELETE CASCADE
+                          CONSTRAINT fk_res_espacio FOREIGN KEY (espacio_id) REFERENCES espacios(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- 11. GRUPOS_MENSAJES
@@ -194,7 +199,7 @@ CREATE TABLE mensajes (
                           destinatario_id BIGINT NULL,
                           grupo_id BIGINT NULL,
                           asunto VARCHAR(255) NOT NULL,
-                          cuerpo TEXT NOT NULL,
+                          cuerpo LONGTEXT NOT NULL,
                           fecha_envio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                           KEY idx_msg_fecha (fecha_envio DESC),
                           KEY idx_msg_remitente (remitente_id),
@@ -269,3 +274,46 @@ CREATE TABLE calificaciones (
                                 CONSTRAINT fk_cal_criterio FOREIGN KEY (criterio_id) REFERENCES criterios_evaluacion(id) ON DELETE CASCADE,
                                 CONSTRAINT fk_cal_alumno FOREIGN KEY (alumno_id) REFERENCES usuarios(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+-- =====================================================
+-- DATOS INICIALES (SEMILLA / SEEDER)
+-- =====================================================
+
+-- 1. Usuario SuperAdmin (God Mode)
+-- Email: admin@pentanet.es
+-- Contraseña: 123456
+-- OJO: centro_id es NULL porque es el superadministrador global
+INSERT INTO usuarios (centro_id, nombre, apellidos, email, password, rol, activo) 
+VALUES (NULL, 'Super', 'Administrador', 'admin@pentanet.es', '$2b$12$oSUCCxVHbcDOwRbpn5x4j.h1HmhNyS27fxh2LCxBm/HYJ0BbYIhGm', 'ADMIN', 1);
+
+-- 2. Instrumentos de Conservatorio
+INSERT INTO instrumentos (nombre) VALUES 
+('Piano'),
+('Violín'),
+('Viola'),
+('Violonchelo'),
+('Contrabajo'),
+('Flauta Travesera'),
+('Oboe'),
+('Clarinete'),
+('Fagot'),
+('Saxofón'),
+('Trompa'),
+('Trompeta'),
+('Trombón'),
+('Tuba'),
+('Percusión'),
+('Arpa'),
+('Guitarra Clásica'),
+('Guitarra Flamenca'),
+('Guitarra Eléctrica'),
+('Bajo Eléctrico'),
+('Canto'),
+('Órgano'),
+('Clave'),
+('Acordeón'),
+('Flauta de Pico'),
+('Viola da Gamba'),
+('Instrumentos de Púa'),
+('Laúd'),
+('Vihuela'),
+('Batería');

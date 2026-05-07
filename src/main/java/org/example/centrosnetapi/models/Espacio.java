@@ -3,14 +3,19 @@ package org.example.centrosnetapi.models;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Table(
-        name = "espacios",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"centro_id", "nombre"})
-)
+@EntityListeners(AuditingEntityListener.class)
+@SQLDelete(sql = "UPDATE espacios SET activo = false WHERE id=?")
+@SQLRestriction("activo = true")
+@Table(name = "espacios", uniqueConstraints = @UniqueConstraint(columnNames = { "centro_id", "nombre" }))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -42,10 +47,16 @@ public class Espacio {
 
     private Integer capacidad = 1;
 
-    @Column(name = "creado_en", insertable = false, updatable = false)
+    @Builder.Default
+    @Column(name = "activo")
+    private Boolean activo = true;
+
+    @CreatedDate
+    @Column(name = "creado_en", updatable = false)
     private LocalDateTime creadoEn;
 
-    @Column(name = "actualizado_en", insertable = false)
+    @LastModifiedDate
+    @Column(name = "actualizado_en")
     private LocalDateTime actualizadoEn;
 
     // ================= VALIDACIÓN =================

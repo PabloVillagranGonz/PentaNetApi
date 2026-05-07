@@ -54,7 +54,7 @@ public class CentroController {
     @PutMapping("/{id}")
     public ResponseEntity<CenterResponseDTO> update(
             @PathVariable Long id,
-            @Valid @RequestBody CenterRequestDTO dto,
+            @jakarta.validation.Valid @RequestBody CenterRequestDTO dto,
             @AuthenticationPrincipal Usuario adminLogueado
     ) {
         return ResponseEntity.ok(centroService.update(id, dto, adminLogueado));

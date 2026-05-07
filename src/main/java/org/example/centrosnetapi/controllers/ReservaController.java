@@ -1,5 +1,6 @@
 package org.example.centrosnetapi.controllers;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.centrosnetapi.dtos.Reserva.CrearReservaDTO;
 import org.example.centrosnetapi.dtos.Reserva.ReservaResponseDTO;
@@ -15,14 +16,14 @@ import java.util.List;
 @RequestMapping("/api/reservas")
 @RequiredArgsConstructor
 @CrossOrigin
-@PreAuthorize("hasAnyRole('ADMIN', 'SECRETARIA')") // 🔥 Solo personal autorizado
+@PreAuthorize("hasAnyRole('ADMIN', 'SECRETARIA')") // Solo personal autorizado
 public class ReservaController {
 
     private final ReservaService reservaService;
 
     @PostMapping
     public ReservaResponseDTO crearReserva(
-            @RequestBody CrearReservaDTO dto,
+            @Valid @RequestBody CrearReservaDTO dto,
             @AuthenticationPrincipal Usuario secretarioLogueado
     ) {
         return reservaService.crearReserva(dto, secretarioLogueado);

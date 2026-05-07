@@ -17,7 +17,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/sesiones")
 @RequiredArgsConstructor
-@CrossOrigin // 🔥 Añadido para que Flutter no se queje
+@CrossOrigin // Añadido para que Flutter no se queje
 public class SesionClaseController {
 
     private final SesionClaseService sesionClaseService;
@@ -25,7 +25,7 @@ public class SesionClaseController {
     @PostMapping
     public ResponseEntity<Void> crear(
             @Valid @RequestBody SesionClaseRequestDTO dto,
-            @AuthenticationPrincipal Usuario adminLogueado // 🔥 Inyectamos el candado
+            @AuthenticationPrincipal Usuario adminLogueado // Inyectamos el candado
     ) {
         // Le pasamos el adminLogueado al servicio
         Long id = sesionClaseService.crearSesion(dto, adminLogueado);
@@ -59,5 +59,12 @@ public class SesionClaseController {
         return ResponseEntity.ok(
                 sesionClaseService.obtenerPorProfesor(profesorId)
         );
+    }
+    @GetMapping("/profesor/{profesorId}/dia/{dia}")
+    public ResponseEntity<List<SesionClaseResponseDTO>> getSesionesPorProfesorYDia(
+            @PathVariable Long profesorId,
+            @PathVariable Integer dia
+    ) {
+        return ResponseEntity.ok(sesionClaseService.obtenerPorProfesorYDia(profesorId, dia));
     }
 }

@@ -34,16 +34,26 @@ public class CorreoService {
     public List<CorreoResponseDTO> getInbox(Usuario usuario) {
         return usuarioMensajeRepository.findInboxByUsuarioId(usuario.getId())
                 .stream()
-                .map(this::toDTO)
+                .map(um -> this.toDTO(um, false)) // false = sin cuerpo
                 .toList();
     }
+
 
     public List<CorreoResponseDTO> getSent(Usuario usuario) {
         return mensajesRepository.findByRemitenteId(usuario.getId())
                 .stream()
-                .map(this::toDTOFromMensaje)
+                .map(m -> toDTOFromMensaje(m, false)) // false = sin cuerpo
                 .toList();
     }
+
+    public CorreoResponseDTO getById(Long id, Usuario usuario) {
+        // Buscamos el estado para este usuario (para saber si es el emisor o destinatario y si tiene permiso)
+        UsuarioMensaje um = usuarioMensajeRepository.findByMensajeIdAndUsuarioId(id, usuario.getId())
+                .orElseThrow(() -> new ApiException("MENSAJE_NOT_FOUND", HttpStatus.NOT_FOUND));
+
+        return toDTO(um, true); // true = con cuerpo
+    }
+
 
     public long countUnread(Usuario usuario) {
         return usuarioMensajeRepository.countUnreadByUsuarioId(usuario.getId());
@@ -71,7 +81,7 @@ public class CorreoService {
         Usuario destinatario = usuarioRepository.findById(dto.getDestinatarioId())
                 .orElseThrow(() -> new ApiException("DESTINATARIO_NOT_FOUND", HttpStatus.NOT_FOUND));
 
-        // 🔥 CANDADO SAAS: Evitar que hablen con usuarios de otros centros
+        // CANDADO SAAS: Evitar que hablen con usuarios de otros centros
         validarMismoCentro(emisor, destinatario);
 
         Mensaje mensaje = Mensaje.builder()
@@ -119,7 +129,7 @@ public class CorreoService {
         }
         estadosAGuardar.add(construirEstado(mensaje, emisor, true));
 
-        // 🔥 OPTIMIZACIÓN: 1 sola consulta a BD para todos los alumnos en vez de N consultas
+        // OPTIMIZACIÓN: 1 sola consulta a BD para todos los alumnos en vez de N consultas
         usuarioMensajeRepository.saveAll(estadosAGuardar);
     }
 
@@ -163,29 +173,32 @@ public class CorreoService {
     // 🗺 MAPPERS
     // ============================================================
 
-    private CorreoResponseDTO toDTO(UsuarioMensaje um) {
+    private CorreoResponseDTO toDTO(UsuarioMensaje um, boolean incluirCuerpo) {
         Mensaje m = um.getMensaje();
-        return construirDTOBase(m)
+        return construirDTOBase(m, incluirCuerpo)
                 .leido(um.getLeido())
                 .archivado(um.getArchivado())
                 .build();
     }
 
-    private CorreoResponseDTO toDTOFromMensaje(Mensaje m) {
-        return construirDTOBase(m).build();
+    private CorreoResponseDTO toDTOFromMensaje(Mensaje m, boolean incluirCuerpo) {
+        return construirDTOBase(m, incluirCuerpo).build();
     }
 
-    private CorreoResponseDTO.CorreoResponseDTOBuilder construirDTOBase(Mensaje m) {
+    private CorreoResponseDTO.CorreoResponseDTOBuilder construirDTOBase(Mensaje m, boolean incluirCuerpo) {
+        String cuerpoResponse = incluirCuerpo ? m.getCuerpo() : "(...)";
+        
         return CorreoResponseDTO.builder()
                 .id(m.getId())
                 .asunto(m.getAsunto())
-                .cuerpo(m.getCuerpo())
+                .cuerpo(cuerpoResponse)
                 .emisorId(m.getRemitente().getId())
                 .emisorNombre(obtenerNombreCompleto(m.getRemitente()))
                 .destinatarioId(m.getDestinatario() != null ? m.getDestinatario().getId() : null)
                 .destinatarioNombre(m.getDestinatario() != null ? obtenerNombreCompleto(m.getDestinatario()) : "Grupo")
                 .fechaEnvio(m.getFechaEnvio());
     }
+
 
     private String obtenerNombreCompleto(Usuario u) {
         return u.getNombre() + " " + u.getApellidos();

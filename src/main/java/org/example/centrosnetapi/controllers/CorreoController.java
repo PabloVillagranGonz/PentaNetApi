@@ -22,6 +22,15 @@ import java.util.List;
 public class CorreoController {
 
     private final CorreoService correoService;
+    
+    @GetMapping("/{id}")
+    public ResponseEntity<CorreoResponseDTO> getById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Usuario usuario
+    ) {
+        return ResponseEntity.ok(correoService.getById(id, usuario));
+    }
+
 
     // 📥 INBOX
     @GetMapping("/inbox")
@@ -77,7 +86,7 @@ public class CorreoController {
     @PostMapping("/send/group")
     @PreAuthorize("hasAnyRole('PROFESOR','ADMIN')")
     public ResponseEntity<Void> sendGroup(
-            @RequestBody SendGroupCorreoRequestDTO dto,
+            @Valid @RequestBody SendGroupCorreoRequestDTO dto,
             @AuthenticationPrincipal Usuario usuario
     ) {
         correoService.sendToGroup(dto, usuario);

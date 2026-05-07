@@ -2,11 +2,14 @@ package org.example.centrosnetapi.models;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(name = "criterios_evaluacion")
 public class CriterioEvaluacion {
 
@@ -28,9 +31,11 @@ public class CriterioEvaluacion {
     @Column(nullable = false, precision = 5, scale = 2)
     private BigDecimal peso;
 
-    @Column(name = "creado_en", insertable = false, updatable = false)
+    @org.springframework.data.annotation.CreatedDate
+    @Column(name = "creado_en", updatable = false)
     private LocalDateTime creadoEn;
 
-    @Column(name = "actualizado_en", insertable = false, updatable = false)
+    @org.springframework.data.annotation.LastModifiedDate
+    @Column(name = "actualizado_en")
     private LocalDateTime actualizadoEn;
 }

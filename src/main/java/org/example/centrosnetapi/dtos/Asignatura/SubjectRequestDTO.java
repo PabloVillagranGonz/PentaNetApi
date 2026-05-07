@@ -15,7 +15,6 @@ public class SubjectRequestDTO {
 
     private String descripcion;
 
-    @NotNull(message = "La duración es obligatoria")
     @Positive(message = "La duración debe ser mayor que 0")
     private Integer duracionMinutos;
 

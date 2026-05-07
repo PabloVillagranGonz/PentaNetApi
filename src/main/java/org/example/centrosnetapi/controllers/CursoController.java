@@ -31,7 +31,7 @@ public class CursoController {
     @PutMapping("/{id}/asignaturas")
     public ResponseEntity<Void> syncSubjects(
             @PathVariable Long id,
-            @RequestBody List<Long> subjectIds,
+            @Valid @RequestBody List<Long> subjectIds,
             @AuthenticationPrincipal Usuario adminLogueado
     ) {
         courseService.syncSubjects(id, subjectIds, adminLogueado);

@@ -33,7 +33,7 @@ public class AsistenciaService {
     // MÉTODOS PÚBLICOS
     // ============================================================
 
-    @Transactional // 🔥 Obligatorio porque hacemos varias operaciones de escritura
+    @Transactional // Obligatorio porque hacemos varias operaciones de escritura
     public void save(AttendanceDTO dto) {
         validarDto(dto);
 
@@ -42,7 +42,7 @@ public class AsistenciaService {
 
         List<Asistencia> existentes = asistenciaRepository.findBySesionIdAndFecha(dto.getSesionId(), fecha);
 
-        // 🔥 OPTIMIZACIÓN: Traemos a todos los alumnos en 1 sola consulta
+        // OPTIMIZACIÓN: Traemos a todos los alumnos en 1 sola consulta
         Map<Long, Usuario> alumnosMap = obtenerAlumnosEnBloque(dto.getAsistencias());
         List<Asistencia> asistenciasAGuardar = new ArrayList<>();
 
@@ -58,7 +58,7 @@ public class AsistenciaService {
             asistenciasAGuardar.add(asistencia);
         }
 
-        // 🔥 OPTIMIZACIÓN: Guardamos todo de golpe (1 sola consulta de inserción/actualización)
+        // OPTIMIZACIÓN: Guardamos todo de golpe (1 sola consulta de inserción/actualización)
         asistenciaRepository.saveAll(asistenciasAGuardar);
     }
 

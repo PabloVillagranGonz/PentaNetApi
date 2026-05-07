@@ -22,7 +22,7 @@ public class AsignaturaController {
     // ================= CREATE =================
     @PostMapping
     public ResponseEntity<SubjectResponseDTO> create(
-            @RequestBody SubjectRequestDTO dto,
+            @jakarta.validation.Valid @RequestBody SubjectRequestDTO dto,
             @AuthenticationPrincipal Usuario adminLogueado
     ) {
         return ResponseEntity.ok(subjectService.create(dto, adminLogueado));
@@ -32,7 +32,7 @@ public class AsignaturaController {
     @PutMapping("/{id}")
     public ResponseEntity<SubjectResponseDTO> update(
             @PathVariable Long id,
-            @RequestBody SubjectRequestDTO dto,
+            @jakarta.validation.Valid @RequestBody SubjectRequestDTO dto,
             @AuthenticationPrincipal Usuario adminLogueado
     ) {
         return ResponseEntity.ok(subjectService.update(id, dto, adminLogueado));

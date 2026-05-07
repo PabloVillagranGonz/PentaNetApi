@@ -3,11 +3,19 @@ package org.example.centrosnetapi.models;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
+@EntityListeners(AuditingEntityListener.class)
+@SQLDelete(sql = "UPDATE cursos SET activo = false WHERE id=?")
+@SQLRestriction("activo = true")
 @Table(name = "cursos")
 @Getter
 @Setter
@@ -41,10 +49,16 @@ public class Curso {
     @JsonIgnoreProperties("cursos")
     private Centro centro;
 
-    @Column(name = "creado_en", insertable = false, updatable = false)
+    @Builder.Default
+    @Column(name = "activo")
+    private Boolean activo = true;
+
+    @CreatedDate
+    @Column(name = "creado_en", updatable = false)
     private LocalDateTime creadoEn;
 
-    @Column(name = "actualizado_en", insertable = false)
+    @LastModifiedDate
+    @Column(name = "actualizado_en")
     private LocalDateTime actualizadoEn;
 
 

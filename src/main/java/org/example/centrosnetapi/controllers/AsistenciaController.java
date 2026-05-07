@@ -1,5 +1,6 @@
 package org.example.centrosnetapi.controllers;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.centrosnetapi.dtos.Asistencia.AsistenciaResponseDTO;
 import org.example.centrosnetapi.dtos.Asistencia.AttendanceDTO;
@@ -23,7 +24,7 @@ public class AsistenciaController {
     // 💾 GUARDAR
     // =========================
     @PostMapping
-    public void save(@RequestBody AttendanceDTO dto) {
+    public void save(@Valid @RequestBody AttendanceDTO dto) {
         asistenciaService.save(dto);
     }
 

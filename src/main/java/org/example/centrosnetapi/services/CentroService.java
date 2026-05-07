@@ -43,7 +43,7 @@ public class CentroService {
     }
 
     public List<CenterResponseDTO> findAll(Usuario adminLogueado) {
-        // 🔥 CANDADO SAAS: Si es admin local, solo ve el suyo
+        // CANDADO SAAS: Si es admin local, solo ve el suyo
         if (adminLogueado.getCentro() != null) {
             return List.of(toDTO(adminLogueado.getCentro()));
         }

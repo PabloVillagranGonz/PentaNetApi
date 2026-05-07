@@ -60,7 +60,7 @@ public class SesionClaseService {
         return sesionRepository.findByCursoId(student.getCurso().getId())
                 .stream()
                 .map(SesionClase::getProfesor)
-                .filter(Objects::nonNull) // 🔥 Código más limpio usando Objects::nonNull
+                .filter(Objects::nonNull) // Código más limpio usando Objects::nonNull
                 .distinct()
                 .map(this::toUserDTO)
                 .toList();
@@ -111,7 +111,7 @@ public class SesionClaseService {
                 sesiones.add(construirSesion(dto, curso, asignatura, profesor, espacio, alumno));
             }
 
-            // 🔥 OPTIMIZACIÓN: saveAll guarda todas las sesiones en un solo viaje a la BD
+            // OPTIMIZACIÓN: saveAll guarda todas las sesiones en un solo viaje a la BD
             List<SesionClase> guardadas = sesionRepository.saveAll(sesiones);
             return guardadas.get(guardadas.size() - 1).getId(); // Devolvemos el último ID para mantener tu contrato original
         }

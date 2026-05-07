@@ -2,10 +2,12 @@ package org.example.centrosnetapi.models;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(
         name = "asignaciones_docentes",
         uniqueConstraints = {
@@ -48,10 +50,12 @@ public class AsignacionDocente {
     @Column(name = "rol_docente")
     private String rolDocente = "Titular";
 
-    @Column(name = "creado_en", insertable = false, updatable = false)
+    @org.springframework.data.annotation.CreatedDate
+    @Column(name = "creado_en", updatable = false)
     private LocalDateTime creadoEn;
 
-    @Column(name = "actualizado_en", insertable = false)
+    @org.springframework.data.annotation.LastModifiedDate
+    @Column(name = "actualizado_en")
     private LocalDateTime actualizadoEn;
 
     // ================= VALIDACIÓN DOMINIO =================

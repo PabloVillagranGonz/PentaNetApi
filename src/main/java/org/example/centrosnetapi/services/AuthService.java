@@ -18,23 +18,40 @@ public class AuthService {
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final org.example.centrosnetapi.security.LoginAttemptService loginAttemptService;
 
     // ============================================================
     // MÉTODOS PÚBLICOS
     // ============================================================
 
-    public LoginResponseDTO login(LoginRequestDTO request) {
-        String email = normalizarEmail(request.getEmail());
+    public LoginResponseDTO login(LoginRequestDTO request, String ipAddress) {
+        if (loginAttemptService.isBlocked(ipAddress)) {
+            throw new ApiException("Demasiados intentos fallidos. Inténtalo de nuevo en 15 minutos.", HttpStatus.TOO_MANY_REQUESTS);
+        }
 
-        Usuario usuario = buscarUsuarioPorEmail(email);
+        try {
+            String email = normalizarEmail(request.getEmail());
+            Usuario usuario = buscarUsuarioPorEmail(email);
 
-        validarCentroSaaS(usuario, request.getCentroId());
-        validarContrasena(request.getPassword(), usuario.getPassword(), "INVALID_PASSWORD");
-        validarUsuarioActivo(usuario);
+            validarCentroSaaS(usuario, request.getCentroId());
+            validarContrasena(request.getPassword(), usuario.getPassword(), "Credenciales inválidas");
+            validarUsuarioActivo(usuario);
 
-        String token = jwtService.generateToken(usuario);
+            String token = jwtService.generateToken(usuario);
+            
+            // Si el login es exitoso, reseteamos los intentos para esta IP
+            loginAttemptService.loginSucceeded(ipAddress);
 
-        return toLoginResponseDTO(usuario, token);
+            return toLoginResponseDTO(usuario, token);
+        } catch (ApiException e) {
+            // Si es un error de credenciales, registramos el fallo
+            if (e.getStatus() == HttpStatus.UNAUTHORIZED || e.getStatus() == HttpStatus.NOT_FOUND) {
+                loginAttemptService.loginFailed(ipAddress);
+                // Opcional: Enmascarar el error para no dar pistas
+                throw new ApiException("Credenciales inválidas", HttpStatus.UNAUTHORIZED);
+            }
+            throw e;
+        }
     }
 
     public void changePassword(Usuario usuario, ChangePasswordRequestDTO dto) {

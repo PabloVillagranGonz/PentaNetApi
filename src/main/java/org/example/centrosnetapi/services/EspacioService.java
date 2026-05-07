@@ -149,7 +149,7 @@ public class EspacioService {
     private EspacioResponseDTO toDashboardDTO(Espacio e) {
         LocalDateTime ahora = LocalDateTime.now();
 
-        // 🔥 OPTIMIZACIÓN: Buscamos directamente la reserva activa en 1 sola consulta
+        // OPTIMIZACIÓN: Buscamos directamente la reserva activa en 1 sola consulta
         // en lugar de usar un exists() y luego un findAll() como hacías antes.
         Reserva reservaActiva = reservaRepository.findAllByEspacio_IdAndFinRealIsNull(e.getId())
                 .stream()

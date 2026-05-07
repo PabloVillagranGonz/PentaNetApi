@@ -22,4 +22,6 @@ public interface AsignaturaCursoRepository
     boolean existsByAsignaturaId(Long asignaturaId);
 
     boolean existsByCursoId(Long cursoId);
+
+    Optional<AsignaturaCurso> findByCursoIdAndAsignaturaId(Long cursoId, Long asignaturaId);
 }

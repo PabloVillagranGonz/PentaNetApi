@@ -1,5 +1,6 @@
 package org.example.centrosnetapi.controllers;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.centrosnetapi.dtos.Espacio.EspacioRequestDTO;
 import org.example.centrosnetapi.dtos.Espacio.EspacioResponseDTO;
@@ -28,7 +29,7 @@ public class EspacioController {
 
     @PostMapping("/aulas")
     public EspacioResponseDTO createAula(
-            @RequestBody EspacioRequestDTO dto,
+            @Valid @RequestBody EspacioRequestDTO dto,
             @AuthenticationPrincipal Usuario adminLogueado
     ) {
         return espacioService.createAula(dto, adminLogueado);
@@ -36,7 +37,7 @@ public class EspacioController {
 
     @PostMapping("/cabinas")
     public EspacioResponseDTO createCabina(
-            @RequestBody EspacioRequestDTO dto,
+            @Valid @RequestBody EspacioRequestDTO dto,
             @AuthenticationPrincipal Usuario adminLogueado
     ) {
         return espacioService.createCabina(dto, adminLogueado);

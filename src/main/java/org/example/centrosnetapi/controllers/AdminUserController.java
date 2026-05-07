@@ -4,11 +4,11 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.centrosnetapi.dtos.Usuario.UpdateUserDTO;
 import org.example.centrosnetapi.dtos.Usuario.UserResponseDTO;
-import org.example.centrosnetapi.models.Usuario; // 🔥 Importante
+import org.example.centrosnetapi.models.Usuario;
 import org.example.centrosnetapi.services.UsuarioService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal; // 🔥 Importante
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -25,9 +25,9 @@ public class AdminUserController {
     // ================= GET ALL =================
     @GetMapping
     public ResponseEntity<List<UserResponseDTO>> getAllUsers(
-            @AuthenticationPrincipal Usuario adminLogueado // 👈 Inyectamos quién pide la lista
+            @AuthenticationPrincipal Usuario adminLogueado // Inyecto el usuario logueado para verificar su centro
     ) {
-        // Ahora el servicio podrá filtrar: si eres Super Admin -> todos, si no -> solo tu centro
+        // Llamo al servicio, el cual se encargará de filtrar por centro si es necesario
         return ResponseEntity.ok(userService.findAll(adminLogueado));
     }
 
@@ -36,7 +36,7 @@ public class AdminUserController {
     public ResponseEntity<Void> updateUser(
             @PathVariable Long id,
             @Valid @RequestBody UpdateUserDTO dto,
-            @AuthenticationPrincipal Usuario adminLogueado // 👈 También aquí para validar permisos
+            @AuthenticationPrincipal Usuario adminLogueado // Reutilizo el usuario para validar permisos
     ) {
         userService.update(id, dto, adminLogueado);
         return ResponseEntity.noContent().build();
@@ -46,7 +46,7 @@ public class AdminUserController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteUser(
             @PathVariable Long id,
-            @AuthenticationPrincipal Usuario adminLogueado // 👈 Y aquí
+            @AuthenticationPrincipal Usuario adminLogueado
     ) {
         userService.deleteById(id, adminLogueado);
         return ResponseEntity.noContent().build();

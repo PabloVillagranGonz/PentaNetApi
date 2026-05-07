@@ -39,7 +39,7 @@ public class Mensaje {
     @Column(nullable = false)
     private String asunto;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    @Column(nullable = false, columnDefinition = "LONGTEXT")
     private String cuerpo;
 
     @Column(name = "fecha_envio", insertable = false, updatable = false)

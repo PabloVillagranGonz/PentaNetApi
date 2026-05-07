@@ -1,5 +1,6 @@
 package org.example.centrosnetapi.controllers;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.centrosnetapi.dtos.Usuario.UpdateUserDTO;
 import org.example.centrosnetapi.dtos.Usuario.UserRequestDTO;
@@ -19,7 +20,6 @@ import java.util.List;
 public class UsuarioController {
 
     private final UsuarioService userService;
-    private final UsuarioRepository usuarioRepository;
 
     // ================= GET ALL =================
     @GetMapping
@@ -31,7 +31,7 @@ public class UsuarioController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public void createUser(
-            @RequestBody UserRequestDTO dto,
+            @Valid @RequestBody UserRequestDTO dto,
             @AuthenticationPrincipal Usuario adminLogueado
     ) {
         userService.create(dto, adminLogueado);
@@ -41,7 +41,7 @@ public class UsuarioController {
     @PutMapping("/{id}")
     public void updateUser(
             @PathVariable Long id,
-            @RequestBody UpdateUserDTO dto,
+            @Valid @RequestBody UpdateUserDTO dto,
             @AuthenticationPrincipal Usuario adminLogueado
     ) {
         userService.update(id, dto, adminLogueado);

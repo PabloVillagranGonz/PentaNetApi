@@ -16,10 +16,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 @Service
-@RequiredArgsConstructor // 🔥 Inyección limpia de dependencias (adiós a los múltiples @Autowired)
+@RequiredArgsConstructor
 public class CalificacionService {
 
     private final CalificacionRepository calificacionRepository;
@@ -28,6 +27,7 @@ public class CalificacionService {
     private final AsignaturaRepository asignaturaRepository;
     private final CursoRepository cursoRepository;
     private final SesionClaseRepository sesionClaseRepository;
+    private final AsignaturaCursoRepository asignaturaCursoRepository; // Añadido
 
     // ============================================================
     // MÉTODOS PÚBLICOS (Lógica Orquestadora)
@@ -44,12 +44,18 @@ public class CalificacionService {
                 .toList();
     }
 
-    public List<AlumnoEvaluacionDTO> obtenerEvaluacionGrupo(Long asignaturaId, Long cursoId) {
+    public List<AlumnoEvaluacionDTO> obtenerEvaluacionGrupo(Long asignaturaId, Long cursoId, boolean ocultarNoPublicadas) {
         List<Usuario> alumnos = usuarioRepository.findByRolAndCursoId(Rol.ALUMNO, cursoId);
         List<CriterioEvaluacion> criterios = criterioRepository.findByAsignaturaIdAndCursoId(asignaturaId, cursoId);
+        
+        boolean publicadas = asignaturaCursoRepository.findByCursoIdAndAsignaturaId(cursoId, asignaturaId)
+                                                      .map(AsignaturaCurso::getNotasPublicadas)
+                                                      .orElse(false);
+
+        boolean ocultar = ocultarNoPublicadas && !publicadas;
 
         return alumnos.stream()
-                .map(alumno -> evaluarAlumnoCompleto(alumno, criterios))
+                .map(alumno -> evaluarAlumnoCompleto(alumno, criterios, publicadas, ocultar))
                 .toList();
     }
 
@@ -76,6 +82,32 @@ public class CalificacionService {
         criterioRepository.save(nuevoCriterio);
     }
 
+    @Transactional
+    public void publicarNotas(Long asignaturaId, Long cursoId, boolean publicadas) {
+        AsignaturaCurso ac = asignaturaCursoRepository.findByCursoIdAndAsignaturaId(cursoId, asignaturaId)
+            .orElseThrow(() -> new ApiException("ASIGNATURA_CURSO_NOT_FOUND", HttpStatus.NOT_FOUND));
+        ac.setNotasPublicadas(publicadas);
+        asignaturaCursoRepository.save(ac);
+    }
+
+    public List<java.util.Map<String, Object>> obtenerAsignaturasPorProfesor(Long profesorId) {
+        // Buscamos todas las sesiones del profesor
+        List<SesionClase> sesiones = sesionClaseRepository.findByProfesorId(profesorId);
+
+        // Transformamos y evitamos duplicados de Asignatura+Curso
+        return sesiones.stream()
+                .map(sesion -> {
+                    java.util.Map<String, Object> map = new java.util.HashMap<>();
+                    map.put("asignaturaId", sesion.getAsignatura().getId());
+                    map.put("asignaturaNombre", sesion.getAsignatura().getNombre());
+                    map.put("cursoId", sesion.getCurso().getId());
+                    map.put("cursoNombre", sesion.getCurso().getNombre());
+                    return map;
+                })
+                .distinct() // Evita que si da dos horas seguidas al mismo grupo, salga dos veces
+                .toList();
+    }
+
     // ============================================================
     // MÉTODOS PRIVADOS (Cálculos y Validaciones)
     // ============================================================
@@ -84,16 +116,21 @@ public class CalificacionService {
         List<CriterioEvaluacion> criterios = criterioRepository.findByAsignaturaIdAndCursoId(asignatura.getId(), cursoId);
 
         BigDecimal media = calcularMediaPonderada(criterios, alumnoId);
+        
+        boolean publicadas = asignaturaCursoRepository.findByCursoIdAndAsignaturaId(cursoId, asignatura.getId())
+                                                      .map(AsignaturaCurso::getNotasPublicadas)
+                                                      .orElse(false);
 
         return ResumenAsignaturaAlumnoDTO.builder()
                 .asignaturaId(asignatura.getId())
                 .asignaturaNombre(asignatura.getNombre())
-                .notaMedia(media)
+                .notaMedia(publicadas ? media : null)
                 .cursoId(cursoId)
+                .publicadas(publicadas)
                 .build();
     }
 
-    private AlumnoEvaluacionDTO evaluarAlumnoCompleto(Usuario alumno, List<CriterioEvaluacion> criterios) {
+    private AlumnoEvaluacionDTO evaluarAlumnoCompleto(Usuario alumno, List<CriterioEvaluacion> criterios, boolean publicadas, boolean ocultar) {
         List<NotaDetalleDTO> detalles = new ArrayList<>();
         BigDecimal sumaPonderada = BigDecimal.ZERO;
         BigDecimal totalPesoEvaluado = BigDecimal.ZERO;
@@ -105,7 +142,7 @@ public class CalificacionService {
                     .criterioId(criterio.getId())
                     .nombreCriterio(criterio.getNombre())
                     .peso(criterio.getPeso())
-                    .nota(notaActual)
+                    .nota(ocultar ? null : notaActual) // Ocultar notas si el alumno pregunta y no están publicadas
                     .build());
 
             if (notaActual != null) {
@@ -119,7 +156,8 @@ public class CalificacionService {
                 .nombre(alumno.getNombre())
                 .apellidos(alumno.getApellidos())
                 .detalleNotas(detalles)
-                .media(calcularMediaSegura(sumaPonderada, totalPesoEvaluado))
+                .media(ocultar ? null : calcularMediaSegura(sumaPonderada, totalPesoEvaluado)) // Ocultar media
+                .publicadas(publicadas)
                 .build();
     }
 

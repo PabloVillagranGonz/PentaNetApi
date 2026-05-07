@@ -4,6 +4,9 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -14,6 +17,9 @@ import java.util.Collection;
 import java.util.List;
 
 @Entity
+@EntityListeners(AuditingEntityListener.class)
+@SQLDelete(sql = "UPDATE usuarios SET activo = false WHERE id=?")
+@SQLRestriction("activo = true")
 @Table(name = "usuarios")
 @Getter
 @Setter
@@ -81,13 +87,16 @@ public class Usuario implements UserDetails {
     @Column(name = "info_adicional", columnDefinition = "TEXT")
     private String infoAdicional;
 
+    @Builder.Default
     @Column(name = "activo")
     private Boolean activo = true;
 
-    @Column(name = "creado_en", insertable = false, updatable = false)
+    @org.springframework.data.annotation.CreatedDate
+    @Column(name = "creado_en", updatable = false)
     private LocalDateTime creadoEn;
 
-    @Column(name = "actualizado_en", insertable = false)
+    @org.springframework.data.annotation.LastModifiedDate
+    @Column(name = "actualizado_en")
     private LocalDateTime actualizadoEn;
 
     // ================= SECURITY =================

@@ -20,7 +20,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-@Transactional // 🔥 Todo el servicio es transaccional para evitar inconsistencias
+@Transactional // Todo el servicio es transaccional para evitar inconsistencias
 public class ReservaService {
 
     private final ReservaRepository reservaRepository;

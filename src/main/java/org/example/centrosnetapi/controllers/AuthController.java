@@ -1,5 +1,7 @@
 package org.example.centrosnetapi.controllers;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.centrosnetapi.dtos.Auth.ChangePasswordRequestDTO;
 import org.example.centrosnetapi.dtos.Auth.LoginRequestDTO;
@@ -26,8 +28,17 @@ public class AuthController {
     private final CentroRepository centroRepository;
 
     @PostMapping("/login")
-    public ResponseEntity<LoginResponseDTO> login(@RequestBody LoginRequestDTO request) {
-        return ResponseEntity.ok(authService.login(request));
+    public ResponseEntity<LoginResponseDTO> login(
+            @Valid @RequestBody LoginRequestDTO request,
+            HttpServletRequest httpRequest
+    ) {
+        String ipAddress = httpRequest.getHeader("X-Forwarded-For");
+        if (ipAddress == null || ipAddress.isEmpty()) {
+            ipAddress = httpRequest.getRemoteAddr();
+        } else {
+            ipAddress = ipAddress.split(",")[0];
+        }
+        return ResponseEntity.ok(authService.login(request, ipAddress));
     }
 
     @GetMapping("/centros")
@@ -40,7 +51,7 @@ public class AuthController {
 
     @PostMapping("/change-password")
     public ResponseEntity<Void> changePassword(
-            @RequestBody ChangePasswordRequestDTO dto,
+            @Valid @RequestBody ChangePasswordRequestDTO dto,
             @AuthenticationPrincipal Usuario usuario
     ) {
         authService.changePassword(usuario, dto);

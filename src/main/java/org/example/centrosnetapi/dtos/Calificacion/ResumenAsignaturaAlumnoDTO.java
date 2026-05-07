@@ -13,4 +13,5 @@ public class ResumenAsignaturaAlumnoDTO {
     private String asignaturaNombre;
     private BigDecimal notaMedia;
     private Long cursoId;
+    private Boolean publicadas;
 }

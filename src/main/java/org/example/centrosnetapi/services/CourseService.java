@@ -14,7 +14,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-@Transactional // 🔥 Protege la base de datos si algo falla a medias
+@Transactional // Protege la base de datos si algo falla a medias
 public class CourseService {
 
     private final CursoRepository cursoRepository;

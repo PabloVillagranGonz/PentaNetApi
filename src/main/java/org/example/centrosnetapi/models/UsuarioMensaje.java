@@ -2,10 +2,13 @@ package org.example.centrosnetapi.models;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(
         name = "usuarios_mensajes",
         uniqueConstraints = {
@@ -49,7 +52,8 @@ public class UsuarioMensaje {
     @Column(name = "fecha_eliminacion")
     private LocalDateTime fechaEliminacion;
 
-    @Column(name = "creado_en", insertable = false, updatable = false)
+    @CreatedDate
+    @Column(name = "creado_en", updatable = false)
     private LocalDateTime creadoEn;
 
     // ================= VALIDACIÓN DOMINIO =================

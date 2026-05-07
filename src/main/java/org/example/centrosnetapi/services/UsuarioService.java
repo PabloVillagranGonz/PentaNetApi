@@ -16,7 +16,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-@Transactional // 🔥 Todo protegido: Si falla la validación de un instrumento, el usuario no se guarda a medias.
+@Transactional // Uso @Transactional para proteger la BD: si falla algo al crear el usuario, se deshace todo y no se guarda a medias.
 public class UsuarioService {
 
     private final PasswordEncoder passwordEncoder;
@@ -34,10 +34,10 @@ public class UsuarioService {
                 ? usuarioRepository.findAll()
                 : usuarioRepository.findByCentroId(adminLogueado.getCentro().getId());
 
-        // 🔥 Filtramos a los ADMINS para no alterar los conteos del dashboard
+        // Filtro a los administradores para que no me alteren las estadísticas del dashboard de usuarios.
         return lista.stream()
                 .filter(u -> u.getRol() != Rol.ADMIN)
-                .map(this::toDTO)
+                .map(u -> toDTO(u))
                 .toList();
     }
 
@@ -50,7 +50,7 @@ public class UsuarioService {
 
         return usuarioRepository.findByCentroId(centroId).stream()
                 .filter(u -> u.getRol() != Rol.ADMIN)
-                .map(this::toDTO)
+                .map(u -> toDTO(u))
                 .toList();
     }
 
@@ -116,19 +116,19 @@ public class UsuarioService {
     }
 
     public List<UserResponseDTO> findTeachersByCenter(Long centroId) {
-        return usuarioRepository.findByCentroIdAndRol(centroId, Rol.PROFESOR).stream().map(this::toDTO).toList();
+        return usuarioRepository.findByCentroIdAndRol(centroId, Rol.PROFESOR).stream().map(u -> toDTO(u)).toList();
     }
 
     public List<UserResponseDTO> findStudentsForCourse(Long courseId) {
         return usuarioRepository.findByCursoId(courseId).stream()
                 .filter(u -> u.getRol() == Rol.ALUMNO)
-                .map(this::toDTO)
+                .map(u -> toDTO(u))
                 .toList();
     }
 
     public List<UserResponseDTO> buscarPorTexto(String query, Long centroId) {
         return usuarioRepository.buscarPorTexto(query, centroId).stream()
-                .map(this::toDTO)
+                .map(u -> toDTO(u))
                 .toList();
     }
 
@@ -144,6 +144,7 @@ public class UsuarioService {
     private Usuario buscarUsuarioValidado(Long id, Usuario adminLogueado, String mensajeErrorSaaS) {
         Usuario usuario = buscarUsuario(id);
 
+        // Compruebo que un admin de un centro no intente acceder a los datos de un usuario de otro centro.
         if (adminLogueado.getCentro() != null && usuario.getCentro() != null &&
                 !adminLogueado.getCentro().getId().equals(usuario.getCentro().getId())) {
             throw new ApiException(mensajeErrorSaaS, HttpStatus.FORBIDDEN);
@@ -158,6 +159,8 @@ public class UsuarioService {
     }
 
     private Long resolverCentroIdSaaS(Long dtoCentroId, Usuario adminLogueado) {
+        // Si soy Superadmin (mi centro es null), uso el centro que me pasen por parámetro.
+        // Si soy Admin normal, ignoro el parámetro y fuerzo el ID de mi propio centro.
         return adminLogueado.getCentro() != null ? adminLogueado.getCentro().getId() : dtoCentroId;
     }
 
