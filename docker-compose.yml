@@ -1,0 +1,35 @@
+
+
+services:
+  # Base de datos MySQL
+  db:
+    image: mysql:8.0
+    container_name: pentanet-db
+    restart: always
+    environment:
+      MYSQL_DATABASE: PentaNet
+      MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+      # Si prefieres una contraseña en el futuro, puedes cambiar estas variables
+      # MYSQL_ROOT_PASSWORD: toor
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  # API Spring Boot
+  backend:
+    build: .
+    container_name: pentanet-api
+    restart: always
+    ports:
+      - "9999:9999"
+    depends_on:
+      db:
+        condition: service_started
+    environment:
+      # Conectamos con el nombre del contenedor "db" en vez de "localhost"
+      DB_URL: jdbc:mysql://db:3306/PentaNet?allowPublicKeyRetrieval=true&useSSL=false
+      DB_USERNAME: root
+      DB_PASSWORD: ''
+      JWT_SECRET: PentaNetSuperSecretKey_MustBeAtLeast32BytesLong!!
+
+volumes:
+  mysql-data:
