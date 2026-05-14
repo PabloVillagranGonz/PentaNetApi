@@ -4,6 +4,7 @@
 -- Idioma: Español
 -- =====================================================
 
+DROP DATABASE IF EXISTS PentaNet;
 CREATE DATABASE IF NOT EXISTS PentaNet
 CHARACTER SET utf8mb4
 COLLATE utf8mb4_unicode_ci;
@@ -156,10 +157,10 @@ CREATE TABLE sesiones_clase (
                                 KEY idx_sc_dia_hora (dia_semana, hora_inicio),
                                 KEY idx_sc_alumno (alumno_id),
                                 CONSTRAINT fk_sc_asignatura FOREIGN KEY (asignatura_id) REFERENCES asignaturas(id) ON DELETE CASCADE,
-                                CONSTRAINT fk_sc_profesor FOREIGN KEY (profesor_id) REFERENCES usuarios(id) ON DELETE RESTRICT,
+                                CONSTRAINT fk_sc_profesor FOREIGN KEY (profesor_id) REFERENCES usuarios(id) ON DELETE CASCADE,
                                 CONSTRAINT fk_sc_curso FOREIGN KEY (curso_id) REFERENCES cursos(id) ON DELETE CASCADE,
                                 CONSTRAINT fk_sc_alumno FOREIGN KEY (alumno_id) REFERENCES usuarios(id) ON DELETE CASCADE,
-                                CONSTRAINT fk_sc_espacio FOREIGN KEY (espacio_id) REFERENCES espacios(id) ON DELETE RESTRICT
+                                CONSTRAINT fk_sc_espacio FOREIGN KEY (espacio_id) REFERENCES espacios(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- 10. RESERVAS
@@ -177,7 +178,7 @@ CREATE TABLE reservas (
                           CHECK (fin > inicio),
                           KEY idx_res_espacio_fecha (espacio_id, inicio, fin),
                           CONSTRAINT fk_res_centro FOREIGN KEY (centro_id) REFERENCES centros(id) ON DELETE CASCADE,
-                          CONSTRAINT fk_res_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE RESTRICT,
+                          CONSTRAINT fk_res_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
                           CONSTRAINT fk_res_espacio FOREIGN KEY (espacio_id) REFERENCES espacios(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
@@ -283,12 +284,12 @@ CREATE TABLE calificaciones (
 -- Contraseña: 123456
 -- OJO: centro_id es NULL porque es el superadministrador global
 INSERT INTO usuarios (centro_id, nombre, apellidos, email, password, rol, activo) 
-VALUES (NULL, 'Super', 'Administrador', 'admin@pentanet.es', '$2b$12$oSUCCxVHbcDOwRbpn5x4j.h1HmhNyS27fxh2LCxBm/HYJ0BbYIhGm', 'ADMIN', 1);
+VALUES (NULL, 'Super', 'Administrador', 'admin@pentanet.es', '$2a$12$oSUCCxVHbcDOwRbpn5x4j.h1HmhNyS27fxh2LCxBm/HYJ0BbYIhGm', 'ADMIN', 1);
 
 -- 2. Instrumentos de Conservatorio
 INSERT INTO instrumentos (nombre) VALUES 
 ('Piano'),
-('Violín'),
+('Violin'),
 ('Viola'),
 ('Violonchelo'),
 ('Contrabajo'),
@@ -296,24 +297,104 @@ INSERT INTO instrumentos (nombre) VALUES
 ('Oboe'),
 ('Clarinete'),
 ('Fagot'),
-('Saxofón'),
+('Saxofon'),
 ('Trompa'),
 ('Trompeta'),
-('Trombón'),
+('Trombon'),
 ('Tuba'),
-('Percusión'),
+('Percusion'),
 ('Arpa'),
-('Guitarra Clásica'),
+('Guitarra Clasica'),
 ('Guitarra Flamenca'),
-('Guitarra Eléctrica'),
-('Bajo Eléctrico'),
+('Guitarra Electrica'),
+('Bajo Electrico'),
 ('Canto'),
-('Órgano'),
+('Organo'),
 ('Clave'),
-('Acordeón'),
+('Acordeon'),
 ('Flauta de Pico'),
 ('Viola da Gamba'),
-('Instrumentos de Púa'),
-('Laúd'),
+('Instrumentos de Pua'),
+('Laud'),
 ('Vihuela'),
-('Batería');
+('Bateria');
+
+-- 3. Centros (2 centros de prueba)
+INSERT INTO centros (nombre, telefono, email, direccion, ciudad, codigo_postal) VALUES 
+('Conservatorio de Valladolid', '912345678', 'valladolid@pentanet.es', 'Calle Atocha 1', 'Valladolid', '28012'),
+('Escuela de Musica de Barcelona', '931234567', 'bcn@pentanet.es', 'Carrer Marina 2', 'Barcelona', '08013');
+
+-- 4. Usuarios por Centro (Todos tienen contraseña '123456')
+-- Centro 1 (Madrid)
+INSERT INTO usuarios (centro_id, nombre, apellidos, email, password, rol, activo) VALUES 
+(1, 'Admin', 'Valladolid', 'admin1@pentanet.es', '$2a$12$oSUCCxVHbcDOwRbpn5x4j.h1HmhNyS27fxh2LCxBm/HYJ0BbYIhGm', 'ADMIN', 1),
+(1, 'Secretario', 'Valladolid', 'secretario1@pentanet.es', '$2a$12$oSUCCxVHbcDOwRbpn5x4j.h1HmhNyS27fxh2LCxBm/HYJ0BbYIhGm', 'SECRETARIA', 1),
+(1, 'Laura', 'Valladolid', 'lauragarrido@pentanet.es', '$2a$12$oSUCCxVHbcDOwRbpn5x4j.h1HmhNyS27fxh2LCxBm/HYJ0BbYIhGm', 'PROFESOR', 1),
+(1, 'Pablo', 'Valladolid', 'pablo@pentanet.es', '$2a$12$oSUCCxVHbcDOwRbpn5x4j.h1HmhNyS27fxh2LCxBm/HYJ0BbYIhGm', 'ALUMNO', 1);
+
+-- Centro 2 (Barcelona)
+INSERT INTO usuarios (centro_id, nombre, apellidos, email, password, rol, activo) VALUES 
+(2, 'Admin', 'Barcelona', 'admin2@pentanet.es', '$2a$12$oSUCCxVHbcDOwRbpn5x4j.h1HmhNyS27fxh2LCxBm/HYJ0BbYIhGm', 'ADMIN', 1),
+(2, 'Secretario', 'Barcelona', 'secretario2@pentanet.es', '$2a$12$oSUCCxVHbcDOwRbpn5x4j.h1HmhNyS27fxh2LCxBm/HYJ0BbYIhGm', 'SECRETARIA', 1),
+(2, 'Profesor', 'Barcelona', 'profesor2@pentanet.es', '$2a$12$oSUCCxVHbcDOwRbpn5x4j.h1HmhNyS27fxh2LCxBm/HYJ0BbYIhGm', 'PROFESOR', 1),
+(2, 'Alumno', 'Barcelona', 'alumno2@pentanet.es', '$2a$12$oSUCCxVHbcDOwRbpn5x4j.h1HmhNyS27fxh2LCxBm/HYJ0BbYIhGm', 'ALUMNO', 1);
+
+-- 5. CURSOS (Centro 1)
+INSERT INTO cursos (centro_id, nombre, anio, activo) VALUES
+(1, '1 Profesional', 1, 1),
+(1, '2 Profesional', 2, 1),
+(1, '3 Profesional', 3, 1),
+(1, '4 Profesional', 4, 1),
+(1, '5 Profesional', 5, 1),
+(1, '6 Profesional', 6, 1);
+
+-- 6. ESPACIOS (Centro 1) - 6 Aulas y 6 Cabinas
+INSERT INTO espacios (centro_id, nombre, tipo, capacidad, activo) VALUES
+(1, 'Aula 1', 'AULA', 20, 1),
+(1, 'Aula 2', 'AULA', 20, 1),
+(1, 'Aula 3', 'AULA', 20, 1),
+(1, 'Aula 4', 'AULA', 20, 1),
+(1, 'Aula 5', 'AULA', 20, 1),
+(1, 'Aula 6', 'AULA', 20, 1),
+(1, 'Cabina 1', 'CABINA', 2, 1),
+(1, 'Cabina 2', 'CABINA', 2, 1),
+(1, 'Cabina 3', 'CABINA', 2, 1),
+(1, 'Cabina 4', 'CABINA', 2, 1),
+(1, 'Cabina 5', 'CABINA', 2, 1),
+(1, 'Cabina 6', 'CABINA', 2, 1);
+
+-- 7. ASIGNATURAS (Centro 1)
+INSERT INTO asignaturas (centro_id, nombre, descripcion, duracion_minutos, tipo, activo) VALUES
+(1, 'Armonia', 'Asignatura grupal de armonia', 60, 'COLECTIVA', 1),
+(1, 'Historia de la Musica', 'Asignatura grupal de historia de la musica', 60, 'COLECTIVA', 1),
+(1, 'Banda', 'Practica grupal de banda', 90, 'COLECTIVA', 1),
+(1, 'Instrumento Principal', 'Clase individual de instrumento', 60, 'INDIVIDUAL', 1);
+
+-- 8. ASIGNATURAS_CURSOS (Relacionar las asignaturas con 1º Profesional - Curso ID 1)
+INSERT INTO asignaturas_cursos (curso_id, asignatura_id, horas_semanales, notas_publicadas) VALUES
+(1, 1, 2.00, 0), -- Armonia
+(1, 2, 2.00, 0), -- Historia de la Musica
+(1, 3, 3.00, 0), -- Banda
+(1, 4, 1.00, 0); -- Instrumento Principal
+
+-- 9. ASIGNACIONES_DOCENTES (Profesor Laura ID 4)
+INSERT INTO asignaciones_docentes (asignatura_id, profesor_id, curso_id, rol_docente) VALUES
+(1, 4, 1, 'Titular'),
+(2, 4, 1, 'Titular'),
+(3, 4, 1, 'Titular'),
+(4, 4, 1, 'Titular');
+
+-- 10. ACTUALIZAR ALUMNO PABLO (Asignarlo al Curso 1 - 1º Profesional y al Instrumento Piano - ID 1)
+-- El ID de Pablo es 5 (asumiendo SuperAdmin 1, Centro 1 tiene 4 usuarios: 2, 3, 4, 5)
+UPDATE usuarios SET curso_id = 1, instrumento_id = 1 WHERE id = 5;
+
+-- 11. SESIONES_CLASE (Horarios)
+-- Sesiones grupales (alumno_id = NULL)
+INSERT INTO sesiones_clase (asignatura_id, profesor_id, curso_id, alumno_id, espacio_id, dia_semana, hora_inicio, hora_fin) VALUES
+(1, 4, 1, NULL, 1, 1, '16:00:00', '17:00:00'), -- Armonia en Aula 1 el Lunes
+(2, 4, 1, NULL, 2, 2, '17:00:00', '18:00:00'), -- Historia en Aula 2 el Martes
+(3, 4, 1, NULL, 3, 3, '18:00:00', '19:30:00'); -- Banda en Aula 3 el Miercoles
+
+-- Sesión individual para Pablo (ID 5) en Instrumento (Asignatura 4)
+INSERT INTO sesiones_clase (asignatura_id, profesor_id, curso_id, alumno_id, espacio_id, dia_semana, hora_inicio, hora_fin) VALUES
+(4, 4, 1, 5, 7, 4, '16:00:00', '17:00:00'); -- Instrumento en Cabina 1 el Jueves para Pablo

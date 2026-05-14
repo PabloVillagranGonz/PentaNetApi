@@ -6,6 +6,8 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -91,11 +93,11 @@ public class Usuario implements UserDetails {
     @Column(name = "activo")
     private Boolean activo = true;
 
-    @org.springframework.data.annotation.CreatedDate
+    @CreatedDate
     @Column(name = "creado_en", updatable = false)
     private LocalDateTime creadoEn;
 
-    @org.springframework.data.annotation.LastModifiedDate
+    @LastModifiedDate
     @Column(name = "actualizado_en")
     private LocalDateTime actualizadoEn;
 

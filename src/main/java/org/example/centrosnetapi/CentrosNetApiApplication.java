@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 @SpringBootApplication
 @EnableScheduling
 @EnableJpaAuditing
+@org.springframework.scheduling.annotation.EnableAsync
 public class CentrosNetApiApplication {
 
     public static void main(String[] args) {

@@ -26,6 +26,7 @@ public class CorreoService {
     private final AsignaturaRepository asignaturaRepository;
     private final CursoRepository cursoRepository;
     private final GrupoMensajesRepository grupoMensajesRepository;
+    private final EmailNotificationService emailNotificationService;
 
     // ============================================================
     // 📥 LECTURA DE BANDEJAS
@@ -99,6 +100,14 @@ public class CorreoService {
                 construirEstado(mensaje, destinatario, false),
                 construirEstado(mensaje, emisor, true)
         ));
+
+        // Enviar notificación por email
+        emailNotificationService.sendNewMessageNotification(
+                destinatario.getEmail(),
+                destinatario.getNombre(),
+                emisor.getNombre() + " " + emisor.getApellidos(),
+                dto.getAsunto()
+        );
     }
 
     public void sendToGroup(SendGroupCorreoRequestDTO dto, Usuario emisor) {
@@ -131,6 +140,18 @@ public class CorreoService {
 
         // OPTIMIZACIÓN: 1 sola consulta a BD para todos los alumnos en vez de N consultas
         usuarioMensajeRepository.saveAll(estadosAGuardar);
+
+        // Enviar notificaciones por email a todo el grupo
+        for (Usuario alumno : alumnos) {
+            if (!alumno.getId().equals(emisor.getId())) {
+                emailNotificationService.sendNewMessageNotification(
+                        alumno.getEmail(),
+                        alumno.getNombre(),
+                        emisor.getNombre() + " " + emisor.getApellidos(),
+                        dto.getAsunto()
+                );
+            }
+        }
     }
 
     // ============================================================

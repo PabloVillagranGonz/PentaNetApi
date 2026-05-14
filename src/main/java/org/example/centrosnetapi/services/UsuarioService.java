@@ -34,12 +34,13 @@ public class UsuarioService {
                 ? usuarioRepository.findAll()
                 : usuarioRepository.findByCentroId(adminLogueado.getCentro().getId());
 
-        // Filtro a los administradores para que no me alteren las estadísticas del dashboard de usuarios.
         return lista.stream()
-                .filter(u -> u.getRol() != Rol.ADMIN)
+                .filter(u -> !u.getId().equals(adminLogueado.getId())) // No mostrarse a sí mismo
                 .map(u -> toDTO(u))
                 .toList();
     }
+
+
 
     public UserResponseDTO findById(Long id) {
         return toDTO(buscarUsuario(id));
@@ -49,13 +50,15 @@ public class UsuarioService {
         validarCentroExiste(centroId);
 
         return usuarioRepository.findByCentroId(centroId).stream()
-                .filter(u -> u.getRol() != Rol.ADMIN)
                 .map(u -> toDTO(u))
                 .toList();
     }
 
+
+
     public void create(UserRequestDTO dto, Usuario adminLogueado) {
-        validarPermisosCreacion(dto.getRol(), adminLogueado);
+        validarPermisosCreacion(dto.getRol(), adminLogueado, dto.getCentroId());
+
 
         Long centroIdDestino = resolverCentroIdSaaS(dto.getCentroId(), adminLogueado);
         String emailNormalizado = normalizarEmail(dto.getEmail());
@@ -164,10 +167,17 @@ public class UsuarioService {
         return adminLogueado.getCentro() != null ? adminLogueado.getCentro().getId() : dtoCentroId;
     }
 
-    private void validarPermisosCreacion(Rol rolSolicitado, Usuario adminLogueado) {
-        if (rolSolicitado == Rol.ADMIN && adminLogueado.getCentro() != null) {
-            throw new ApiException("CENTER_ADMIN_CANNOT_CREATE_ADMINS", HttpStatus.FORBIDDEN);
+    private void validarPermisosCreacion(Rol rolSolicitado, Usuario adminLogueado, Long dtoCentroId) {
+
+        if (rolSolicitado == Rol.ADMIN) {
+            if (adminLogueado.getCentro() != null) {
+                throw new ApiException("CENTER_ADMIN_CANNOT_CREATE_ADMINS", HttpStatus.FORBIDDEN);
+            }
+            if (dtoCentroId == null) {
+                throw new ApiException("ADMIN_MUST_HAVE_A_CENTER", HttpStatus.BAD_REQUEST);
+            }
         }
+
         if (adminLogueado.getRol() == Rol.SECRETARIA && rolSolicitado != Rol.ALUMNO) {
             throw new ApiException("SECRETARIA_CAN_ONLY_CREATE_STUDENTS", HttpStatus.FORBIDDEN);
         }
