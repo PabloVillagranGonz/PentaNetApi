@@ -1,0 +1,39 @@
+services:
+  # 1. Base de datos MySQL
+  db:
+    image: mysql:8.0
+    container_name: pentanet-db
+    restart: always
+    environment:
+      MYSQL_DATABASE: PentaNet
+      MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  # 2. API Spring Boot
+  backend:
+    build: .
+    container_name: pentanet-api
+    restart: always
+    ports:
+      - "9999:8080"
+    depends_on:
+      - db
+    environment:
+      DB_URL: jdbc:mysql://db:3306/PentaNet?allowPublicKeyRetrieval=true&useSSL=false
+      DB_USERNAME: root
+      DB_PASSWORD: ''
+      JWT_SECRET: PentaNetSuperSecretKey_MustBeAtLeast32BytesLong!!
+
+  # 3. Frontend Web
+  web:
+    image: nginx:alpine
+    container_name: pentanet-web
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./PentaNetWeb:/usr/share/nginx/html
+
+volumes:
+  mysql-data:
