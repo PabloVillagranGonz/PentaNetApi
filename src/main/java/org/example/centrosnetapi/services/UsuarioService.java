@@ -54,6 +54,16 @@ public class UsuarioService {
                 .toList();
     }
 
+    public UserResponseDTO buscarPorEmail(String email) {
+        if (email == null || email.isBlank()) {
+            throw new ApiException("EMAIL_REQUIRED", HttpStatus.BAD_REQUEST);
+        }
+
+        Usuario usuario = usuarioRepository.findByEmailIgnoreCase(email.trim())
+                .orElseThrow(() -> new ApiException("USER_NOT_FOUND", HttpStatus.NOT_FOUND));
+
+        return toDTO(usuario);
+    }
 
 
     public void create(UserRequestDTO dto, Usuario adminLogueado) {

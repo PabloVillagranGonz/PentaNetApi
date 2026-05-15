@@ -28,6 +28,15 @@ public class UsuarioController {
         return userService.findAll(adminLogueado);
     }
 
+    // ================= BUSCAR POR EMAIL =================
+    @GetMapping("/email")
+    public UserResponseDTO getUserByEmail(
+            @RequestParam("email") String email,
+            @AuthenticationPrincipal Usuario adminLogueado
+    ) {
+        return userService.buscarPorEmail(email);
+    }
+
     // ================= CREATE =================
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
