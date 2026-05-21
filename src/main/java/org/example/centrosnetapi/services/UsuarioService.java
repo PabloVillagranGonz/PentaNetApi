@@ -112,6 +112,7 @@ public class UsuarioService {
         }
 
         if (dto.getRol() != null) usuario.setRol(dto.getRol());
+        if (dto.getTelefono() != null) usuario.setTelefono(dto.getTelefono().trim());
 
         assignRelations(usuario, dto.getCentroId(), dto.getCursoId(), dto.getInstrumentoId());
 

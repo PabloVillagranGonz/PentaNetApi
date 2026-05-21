@@ -44,7 +44,7 @@ public class CentroService {
 
     public List<CenterResponseDTO> findAll(Usuario adminLogueado) {
         // CANDADO SAAS: Si es admin local, solo ve el suyo
-        if (adminLogueado.getCentro() != null) {
+        if (adminLogueado != null && adminLogueado.getCentro() != null) {
             return List.of(toDTO(adminLogueado.getCentro()));
         }
 
@@ -54,7 +54,9 @@ public class CentroService {
     }
 
     public CenterResponseDTO findById(Long id, Usuario adminLogueado) {
-        validarAccesoAlCentro(adminLogueado, id, "ACCESO_DENEGADO");
+        if (adminLogueado != null) {
+            validarAccesoAlCentro(adminLogueado, id, "ACCESO_DENEGADO");
+        }
         Centro centro = buscarCentro(id);
 
         return toDTO(centro);
